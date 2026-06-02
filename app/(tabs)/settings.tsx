@@ -1,0 +1,213 @@
+import { Feather } from "@expo/vector-icons";
+import React, { useState } from "react";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+
+import {
+  Btn,
+  Card,
+  Field,
+  font,
+  Header,
+  Loading,
+  Screen,
+  SectionLabel,
+  Segmented,
+  tap,
+  useUI,
+} from "@/components/ui";
+import { useApp } from "@/context/AppContext";
+import { exportToFile, importFromFile } from "@/lib/io";
+
+export default function SettingsScreen() {
+  const { colors, row, textAlign } = useUI();
+  const app = useApp();
+  const [busy, setBusy] = useState(false);
+
+  if (!app.ready) return <Loading />;
+  const t = app.t;
+  const s = app.settings;
+
+  const doExport = async () => {
+    try {
+      setBusy(true);
+      await exportToFile(app.exportJson());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runImport = async () => {
+    try {
+      setBusy(true);
+      const json = await importFromFile();
+      if (!json) return;
+      app.importJson(json);
+      notify(t("import_done"));
+    } catch {
+      notify(t("import_failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doImport = () => {
+    if (Platform.OS === "web") {
+      // eslint-disable-next-line no-alert
+      if (window.confirm(t("import_confirm"))) runImport();
+      return;
+    }
+    Alert.alert(t("import_data"), t("import_confirm"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("confirm"), onPress: runImport },
+    ]);
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Header title={t("tab_settings")} />
+      <Screen scroll>
+        <SectionLabel text={t("language")} />
+        <Segmented
+          value={app.lang}
+          onChange={(l) => app.setLanguage(l)}
+          options={[
+            { key: "en", label: "English" },
+            { key: "ar", label: "العربية" },
+          ]}
+        />
+
+        <View style={{ height: 20 }} />
+        <SectionLabel text={t("squadron_name")} />
+        <Card style={{ gap: 8 }}>
+          <Field
+            label={t("squadron_name")}
+            value={s.squadronName}
+            onChangeText={(v) => app.updateSettings({ squadronName: v })}
+            placeholder={t("squadron_name_placeholder")}
+            maxLength={60}
+          />
+          <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, textAlign }}>
+            {t("squadron_name_hint")}
+          </Text>
+        </Card>
+
+        <View style={{ height: 20 }} />
+        <SectionLabel text={t("settings_fairness")} />
+        <Card>
+          <Stepper
+            label={t("window_days")}
+            value={s.windowDays}
+            min={7}
+            max={90}
+            step={1}
+            onChange={(v) => app.updateSettings({ windowDays: v })}
+            format={(v) => String(v)}
+          />
+          <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, marginBottom: 14, textAlign }}>
+            {t("window_days_hint")}
+          </Text>
+          <Divider />
+          <Stepper label={t("duty_weight")} value={s.dutyWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ dutyWeight: v })} format={(v) => v.toFixed(1)} />
+          <Divider />
+          <Stepper label={t("weekend_weight")} value={s.weekendWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ weekendWeight: v })} format={(v) => v.toFixed(1)} />
+          <Divider />
+          <Stepper label={t("standby_weight")} value={s.standbyWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ standbyWeight: v })} format={(v) => v.toFixed(1)} />
+          <Divider />
+          <Stepper label={t("special_weight")} value={s.specialWeight} min={0.5} max={10} step={0.5} onChange={(v) => app.updateSettings({ specialWeight: v })} format={(v) => v.toFixed(1)} />
+        </Card>
+        <Btn label={t("reset_weights")} variant="ghost" icon="rotate-ccw" onPress={() => app.resetWeights()} style={{ marginTop: 12 }} />
+
+        <View style={{ height: 20 }} />
+        <SectionLabel text={t("data_management")} />
+        <Card style={{ gap: 12 }}>
+          <Text style={{ fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, textAlign, lineHeight: 19 }}>
+            {t("export_hint")}
+          </Text>
+          <Btn label={t("export_data")} icon="upload" variant="secondary" onPress={doExport} disabled={busy} />
+          <Divider />
+          <Text style={{ fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, textAlign, lineHeight: 19 }}>
+            {t("import_hint")}
+          </Text>
+          <Btn label={t("import_data")} icon="download" variant="secondary" onPress={doImport} disabled={busy} />
+        </Card>
+
+        <View style={{ height: 20 }} />
+        <SectionLabel text={t("about")} />
+        <Card>
+          <View style={{ flexDirection: row, gap: 10 }}>
+            <Feather name="shield" size={18} color={colors.primary} />
+            <Text style={{ flex: 1, fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, lineHeight: 20, textAlign }}>
+              {t("about_text")}
+            </Text>
+          </View>
+        </Card>
+      </Screen>
+    </View>
+  );
+}
+
+function notify(msg: string) {
+  if (Platform.OS === "web") {
+    // eslint-disable-next-line no-alert
+    window.alert(msg);
+  } else {
+    Alert.alert(msg);
+  }
+}
+
+function Divider() {
+  const { colors } = useUI();
+  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 12 }} />;
+}
+
+function Stepper({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  format,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  format: (v: number) => string;
+}) {
+  const { colors, row, textAlign } = useUI();
+  const dec = () => onChange(Math.max(min, Math.round((value - step) * 10) / 10));
+  const inc = () => onChange(Math.min(max, Math.round((value + step) * 10) / 10));
+  return (
+    <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between" }}>
+      <Text style={{ flex: 1, fontFamily: font.medium, fontSize: 14.5, color: colors.foreground, textAlign }}>
+        {label}
+      </Text>
+      <View style={{ flexDirection: row, alignItems: "center", gap: 14 }}>
+        <Pressable
+          onPress={() => {
+            tap();
+            dec();
+          }}
+          style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.muted, alignItems: "center", justifyContent: "center" }}
+        >
+          <Feather name="minus" size={16} color={colors.foreground} />
+        </Pressable>
+        <Text style={{ minWidth: 38, textAlign: "center", fontFamily: font.bold, fontSize: 16, color: colors.foreground }}>
+          {format(value)}
+        </Text>
+        <Pressable
+          onPress={() => {
+            tap();
+            inc();
+          }}
+          style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.muted, alignItems: "center", justifyContent: "center" }}
+        >
+          <Feather name="plus" size={16} color={colors.foreground} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}

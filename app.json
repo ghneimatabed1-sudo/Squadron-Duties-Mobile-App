@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Squadron Duty Scheduler",
+    "slug": "squadron-duty",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "squadron-duty",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "owner": "abedghn",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.abedghn.squadronduty"
+    },
+    "android": {
+      "package": "com.abedghn.squadronduty"
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
