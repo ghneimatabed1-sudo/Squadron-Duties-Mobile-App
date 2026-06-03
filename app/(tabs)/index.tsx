@@ -741,6 +741,18 @@ function buildSheetHtml(
         name: s.eventName,
         person: app.personName(s.personId),
       }));
+    // Location duties covering this day, grouped by location (crew names joined).
+    const dayLocMap = new Map<string, string[]>();
+    for (const l of app.state.locations) {
+      if (date < l.startDate || date > l.endDate) continue;
+      const arr = dayLocMap.get(l.location) ?? [];
+      arr.push(app.personName(l.personId));
+      dayLocMap.set(l.location, arr);
+    }
+    const dayLocations = [...dayLocMap.entries()].map(([location, people]) => ({
+      location,
+      people: people.join(", "),
+    }));
     return {
       weekday: app.weekday(dayOfWeek(date)),
       dateLabel: `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`,
@@ -751,6 +763,7 @@ function buildSheetHtml(
       standbyCopilot: nameOf(date, "standby", "copilot"),
       solo: solo ? app.personName(solo.personId) : undefined,
       specials: specials.length ? specials : undefined,
+      locations: dayLocations.length ? dayLocations : undefined,
     };
   });
 
@@ -763,12 +776,31 @@ function buildSheetHtml(
     return `${p.getDate()}/${p.getMonth() + 1}/${p.getFullYear()}`;
   };
   const arrow = app.isRTL ? "←" : "→";
-  const locations: RosterLocation[] = app.state.locations
-    .filter((l) => l.startDate <= rangeEnd && l.endDate >= rangeStart)
+  // Group location stints by location + date range so a crew (captain +
+  // co-pilot over the same range) reads as one line with both names.
+  const locGroups = new Map<
+    string,
+    { location: string; startDate: string; endDate: string; people: string[] }
+  >();
+  for (const l of app.state.locations) {
+    if (!(l.startDate <= rangeEnd && l.endDate >= rangeStart)) continue;
+    const key = `${l.location}|${l.startDate}|${l.endDate}`;
+    const g =
+      locGroups.get(key) ??
+      {
+        location: l.location,
+        startDate: l.startDate,
+        endDate: l.endDate,
+        people: [],
+      };
+    g.people.push(app.personName(l.personId));
+    locGroups.set(key, g);
+  }
+  const locations: RosterLocation[] = [...locGroups.values()]
     .sort((a, b) => (a.startDate < b.startDate ? -1 : 1))
-    .map((l) => ({
-      location: l.location,
-      detail: `${app.personName(l.personId)} · ${fmtDate(l.startDate)} ${arrow} ${fmtDate(l.endDate)}`,
+    .map((g) => ({
+      location: g.location,
+      detail: `${g.people.join(", ")} · ${fmtDate(g.startDate)} ${arrow} ${fmtDate(g.endDate)}`,
     }));
 
   const subtitle = `${first.getDate()}/${first.getMonth() + 1}/${first.getFullYear()} – ${last.getDate()}/${last.getMonth() + 1}/${last.getFullYear()}`;

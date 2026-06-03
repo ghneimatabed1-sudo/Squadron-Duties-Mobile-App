@@ -8,6 +8,8 @@ export interface RosterDay {
   standbyCopilot: string;
   solo?: string;
   specials?: { name: string; person: string }[];
+  /** Location duties active on this day: location name + the crew on it. */
+  locations?: { location: string; people: string }[];
 }
 
 export interface RosterLocation {
@@ -57,15 +59,22 @@ export function buildRosterHtml(data: RosterSheetData): string {
             `<div class="special-tag"><span class="ev">${esc(s.name)}</span> · ${esc(s.person)}</div>`,
         )
         .join("");
+      const locationTags = (d.locations ?? [])
+        .map(
+          (l) =>
+            `<div class="loc-tag"><span class="ev">${esc(l.location)}</span> · ${esc(l.people)}</div>`,
+        )
+        .join("");
       const dayCell = `
         <td class="day${d.isWeekend ? " weekend" : ""}">
           <div class="dow">${esc(d.weekday)}</div>
           <div class="date">${esc(d.dateLabel)}</div>
           ${d.isWeekend ? `<div class="wknd-tag">${esc(L.weekend)}</div>` : ""}
           ${specialsTags}
+          ${locationTags}
         </td>`;
       const soloRow = d.solo
-        ? `<div class="solo">${esc(L.solo)}: <strong>${esc(d.solo)}</strong></div>`
+        ? `<div class="solo"><strong>${esc(d.solo)}</strong></div>`
         : "";
       return `
       <tr class="${d.isWeekend ? "weekend-row" : ""}">
@@ -133,6 +142,18 @@ export function buildRosterHtml(data: RosterSheetData): string {
     display: inline-block;
   }
   td.day .special-tag .ev { font-weight: 700; }
+  td.day .loc-tag {
+    margin-top: 4px;
+    font-size: 10.5px;
+    line-height: 1.3;
+    color: #143b6b;
+    background: #e3edfb;
+    border: 1px solid #b9cdec;
+    border-radius: 4px;
+    padding: 2px 5px;
+    display: inline-block;
+  }
+  td.day .loc-tag .ev { font-weight: 700; }
   .legend {
     margin-top: 16px;
     border: 1px solid var(--line);

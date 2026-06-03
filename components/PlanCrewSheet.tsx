@@ -474,6 +474,8 @@ export function PlanCrewSheet({
 
       {picker ? (
         <PersonPickerModal
+          kind={kind}
+          locationName={locName}
           refDates={picker.refDates}
           role={picker.role}
           excluded={picker.excluded}
@@ -544,12 +546,16 @@ function PersonSlot({
 }
 
 function PersonPickerModal({
+  kind,
+  locationName,
   refDates,
   role,
   excluded,
   onClose,
   onSelect,
 }: {
+  kind: Kind;
+  locationName: string;
   refDates: string[];
   role: SlotRole;
   excluded: string[];
@@ -563,12 +569,16 @@ function PersonPickerModal({
   const excludedSet = new Set(excluded);
   const refKey = refDates.join(",");
 
-  // recommendSlot applies fairness ordering AND hard-blocks anyone busy
-  // (existing special/location) or already on a duty/standby slot that day.
-  // For a multi-day stretch (same-crew mode), a person must be free on EVERY
-  // day, so we intersect eligibility across all reference dates.
+  // Location crews use their own rotation: any active person of the role may go
+  // to a location even if they currently sit on the daily roster — assigning
+  // them simply pulls them out of it. Only true conflicts (another location /
+  // special on these days) or a per-location exclusion bar them. Events keep
+  // the strict duty rules (recommendSlot), intersected across the stretch.
   const candidates = useMemo(() => {
     const dates = refDates.length ? refDates : [];
+    if (kind === "location") {
+      return app.recommendLocationCrew(dates, role, locationName, excluded);
+    }
     const perDay = dates.map((d) => app.recommendSlot(d, role));
     const base = perDay[0] ?? [];
     return base
@@ -587,7 +597,7 @@ function PersonPickerModal({
         return { ...c, eligible, reasonKey };
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app, refKey, role, excluded]);
+  }, [app, kind, locationName, refKey, role, excluded]);
   const firstEligible = candidates.find((c) => c.eligible)?.person.id;
 
   return (

@@ -8,7 +8,8 @@ import React, {
   useState,
 } from "react";
 
-import { addDays, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
+import { addDays, eachDay, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
+import { buildDemoState } from "@/lib/demo";
 import {
   Candidate,
   computeTotals,
@@ -16,6 +17,7 @@ import {
   PersonTotals,
   previewSwap,
   recommendForLocation,
+  recommendForLocationCrew,
   recommendForSlot,
   recommendForSpecial,
   SwapPreview,
@@ -147,6 +149,12 @@ interface AppContextValue {
   recommendSlot: (date: string, role: SlotRole) => Candidate[];
   recommendSpecial: (eventKey: string, role: SlotRole) => Candidate[];
   recommendLocation: (excludedIds?: string[]) => LocationCandidate[];
+  recommendLocationCrew: (
+    dates: string[],
+    role: SlotRole,
+    locationName: string,
+    siblingExcluded: string[],
+  ) => Candidate[];
   swapPreview: (
     date: string,
     crew: CrewKind,
@@ -173,7 +181,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const loaded = await loadState();
-      if (loaded) setState(loaded);
+      if (loaded) {
+        setState(loaded);
+      } else if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // DEV-only: seed a populated demo squadron so the preview is not blank.
+        // Release builds always start clean for real data.
+        setState(buildDemoState());
+      }
       hydrated.current = true;
       setReady(true);
     })();
@@ -527,13 +541,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const planLocations = useCallback(
     (records: Omit<LocationAssignment, "id">[]) => {
       if (!records.length) return;
-      setState((s) => ({
-        ...s,
-        locations: [
-          ...s.locations,
-          ...records.map((r) => ({ ...r, id: uid() })),
-        ],
-      }));
+      setState((s) => {
+        const newLocs = records.map((r) => ({ ...r, id: uid() }));
+        const locations = [...s.locations, ...newLocs];
+
+        // Every day touched by the new location stints.
+        const touched = new Set<string>();
+        for (const r of records)
+          for (const d of eachDay(r.startDate, r.endDate)) touched.add(d);
+
+        // A person sent to a location is OUT of the regular rotation on those
+        // days — pull them off any duty/standby slot and any solo cover so the
+        // schedule can rebalance the remaining pool around them.
+        const onNewLocation = (personId: string, d: string): boolean =>
+          newLocs.some(
+            (l) => l.personId === personId && d >= l.startDate && d <= l.endDate,
+          );
+        const assignments = s.assignments.filter(
+          (a) => !onNewLocation(a.personId, a.date),
+        );
+        const solos = s.solos.filter((so) => !onNewLocation(so.personId, so.date));
+
+        // Backfill the vacated slots, fairly rebalanced (auto-fill never picks
+        // anyone on a location stint, and only fills the now-empty slots).
+        const dates = [...touched].sort();
+        const filled = dates.length
+          ? autoFill(
+              {
+                people: s.people,
+                assignments,
+                specials: s.specials,
+                locations,
+                settings: s.settings,
+                splitWeekends: s.splitWeekends,
+                extraCrews: s.extraCrews,
+              },
+              dates,
+            )
+          : assignments;
+
+        return { ...s, locations, assignments: filled, solos };
+      });
     },
     [],
   );
@@ -668,6 +716,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [state.people, state.locations],
   );
 
+  const recommendLocationCrew = useCallback(
+    (
+      dates: string[],
+      role: SlotRole,
+      locationName: string,
+      siblingExcluded: string[],
+    ) => {
+      const def = state.locationDefs.find(
+        (d) =>
+          d.name.trim().toLowerCase() === locationName.trim().toLowerCase(),
+      );
+      return recommendForLocationCrew(
+        state.people,
+        state.locations,
+        state.specials,
+        role,
+        dates,
+        new Set(def?.excluded ?? []),
+        new Set(siblingExcluded),
+      );
+    },
+    [state.people, state.locations, state.specials, state.locationDefs],
+  );
+
   const swapPreview = useCallback(
     (
       date: string,
@@ -772,6 +844,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recommendSlot,
     recommendSpecial,
     recommendLocation,
+    recommendLocationCrew,
     swapPreview,
     totals,
     personName,

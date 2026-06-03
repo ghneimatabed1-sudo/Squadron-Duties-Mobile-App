@@ -177,7 +177,11 @@ export interface Candidate {
   balance: number; // load - fairShare (negative = owed, positive = ahead)
   lastDutyDate: string | null;
   eligible: boolean;
-  reasonKey?: "reason_inactive" | "reason_double_booked" | "reason_busy";
+  reasonKey?:
+    | "reason_inactive"
+    | "reason_double_booked"
+    | "reason_busy"
+    | "reason_location_excluded";
   eventCount?: number;
   /** True for single-cover people: selectable manually, but never auto-filled. */
   singleCover?: boolean;
@@ -373,6 +377,88 @@ export function recommendForLocation(
     if (a.count !== b.count) return a.count - b.count;
     const la = a.lastDate ?? "0";
     const lb = b.lastDate ?? "0";
+    if (la !== lb) return la < lb ? -1 : 1;
+    return a.person.name.localeCompare(b.person.name);
+  });
+
+  return list;
+}
+
+/**
+ * Ranked candidates for ONE crew slot (captain or co-pilot) of a planned
+ * location stint. Unlike a normal duty slot, being on the regular duty/standby
+ * rotation does NOT bar a person — assigning them to a location simply pulls
+ * them out of that rotation (the schedule rebalances around them). A person is
+ * only blocked when:
+ *   - they are inactive,
+ *   - they are barred from this specific location, or
+ *   - they are already committed to ANOTHER location stint / special event on
+ *     any of the stint's days (a genuine conflict).
+ * Sibling picks (the other crews/role already chosen in this same plan) are
+ * removed from the list entirely. Ordering follows location-duty fairness
+ * (fewest location duties first, then longest ago).
+ */
+export function recommendForLocationCrew(
+  people: Person[],
+  locations: LocationAssignment[],
+  specials: SpecialAssignment[],
+  role: SlotRole,
+  dates: string[],
+  locationExcluded: Set<string>,
+  siblingExcluded: Set<string>,
+): Candidate[] {
+  const counts = new Map<string, number>();
+  const last = new Map<string, string>();
+  for (const loc of locations) {
+    counts.set(loc.personId, (counts.get(loc.personId) ?? 0) + 1);
+    const cur = last.get(loc.personId);
+    if (!cur || loc.endDate > cur) last.set(loc.personId, loc.endDate);
+  }
+
+  const conflictOn = (id: string): boolean =>
+    dates.some(
+      (d) =>
+        specials.some((s) => s.date === d && s.personId === id) ||
+        locations.some(
+          (loc) =>
+            loc.personId === id && d >= loc.startDate && d <= loc.endDate,
+        ),
+    );
+
+  const list: Candidate[] = people
+    .filter((p) => p.role === role && !siblingExcluded.has(p.id))
+    .map((p) => {
+      let eligible = true;
+      let reasonKey: Candidate["reasonKey"];
+      if (!p.active) {
+        eligible = false;
+        reasonKey = "reason_inactive";
+      } else if (locationExcluded.has(p.id)) {
+        eligible = false;
+        reasonKey = "reason_location_excluded";
+      } else if (conflictOn(p.id)) {
+        eligible = false;
+        reasonKey = "reason_busy";
+      }
+      const count = counts.get(p.id) ?? 0;
+      return {
+        person: p,
+        load: count,
+        balance: 0,
+        lastDutyDate: last.get(p.id) ?? null,
+        eligible,
+        reasonKey,
+        singleCover: p.singleCover === true,
+      };
+    });
+
+  list.sort((a, b) => {
+    if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    // Normal pilots rank above single-cover people.
+    if (!!a.singleCover !== !!b.singleCover) return a.singleCover ? 1 : -1;
+    if (a.load !== b.load) return a.load - b.load;
+    const la = a.lastDutyDate ?? "0";
+    const lb = b.lastDutyDate ?? "0";
     if (la !== lb) return la < lb ? -1 : 1;
     return a.person.name.localeCompare(b.person.name);
   });
