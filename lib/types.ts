@@ -31,6 +31,14 @@ export interface Assignment {
   role: SlotRole; // captain or copilot
   personId: string;
   activated?: boolean; // standby called in -> counts as duty
+  /**
+   * Which flying crew this duty slot belongs to. 0 / undefined = the base crew
+   * (the normal everyday crew). 1, 2, … = EXTRA duty crews on the rare days that
+   * need a second (or third) crew up — e.g. 2 captains + 2 co-pilots flying.
+   * Standby is always a single crew (index 0). A person can still hold at most
+   * one slot per day, so extra crews never double-book anyone.
+   */
+  crewIndex?: number;
 }
 
 export interface SpecialAssignment {
@@ -79,6 +87,7 @@ export interface Settings {
   weekendWeight: number; // weight per weekend duty day
   standbyWeight: number; // weight per activated standby
   specialWeight: number; // weight per special event
+  locationWeight: number; // weight per day of location duty
 }
 
 export interface AppState {
@@ -94,6 +103,13 @@ export interface AppState {
    * one crew covers the whole weekend (Thu–Fri–Sat) as a single duty.
    */
   splitWeekends: string[];
+  /**
+   * Per-day count of EXTRA duty crews beyond the normal one (keyed by yyyy-mm-dd).
+   * Missing / 0 = the usual single duty crew. A value of 1 means the day flies
+   * two duty crews that day, etc. Standby is unaffected. Persisted so an added
+   * (even still-empty) extra crew survives reload and is filled by auto-fill.
+   */
+  extraCrews: Record<string, number>;
   settings: Settings;
   version: number;
 }
@@ -106,6 +122,7 @@ export const DEFAULT_SETTINGS: Settings = {
   weekendWeight: 1.5,
   standbyWeight: 1,
   specialWeight: 3,
+  locationWeight: 1,
 };
 
 export const DEFAULT_STATE: AppState = {
@@ -116,9 +133,13 @@ export const DEFAULT_STATE: AppState = {
   locationDefs: [],
   solos: [],
   splitWeekends: [],
+  extraCrews: {},
   settings: DEFAULT_SETTINGS,
   version: 1,
 };
+
+/** Hard cap on extra duty crews per day (so total duty crews <= 1 + this). */
+export const MAX_EXTRA_CREWS = 3;
 
 export function uid(): string {
   return Date.now().toString() + Math.random().toString(36).slice(2, 11);

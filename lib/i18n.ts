@@ -97,6 +97,7 @@ const en: Dict = {
   not_eligible: "Not eligible",
   reason_inactive: "Out of rotation",
   reason_double_booked: "Already assigned this day",
+  reason_busy: "Busy this day",
   confirm_swap: "Confirm assignment",
   unassign: "Unassign",
   whose_turn: "Whose turn",
@@ -155,6 +156,8 @@ const en: Dict = {
   priority_order: "Priority order",
   year_over_year_hint:
     "Priority remembers who worked this event before — those who worked it least or longest ago come first.",
+  special_crew_hint:
+    "Pick the crew for this event — a captain (pilot) and a co-pilot. Choose one or both.",
   no_specials: "No special events recorded yet.",
   no_locations: "No location duty recorded yet.",
   location_rotation_hint:
@@ -192,8 +195,32 @@ const en: Dict = {
     "How many recent days are weighed when balancing the load. Default 21.",
   weekend_weight: "Weekend duty weight",
   special_weight: "Special event weight",
+  location_weight: "Location duty weight",
+  location_weight_hint:
+    "How much each location-duty day counts toward the fairness balance.",
   standby_weight: "Activated standby weight",
   duty_weight: "Weekday duty weight",
+
+  plan_special_event: "Plan special event",
+  plan_special_location: "Plan special location",
+  plan_event_hint:
+    "Assign a crew (captain + co-pilot) to an event across a date range. They are counted as busy and blocked from auto-fill on those days.",
+  plan_location_hint:
+    "Assign a crew (captain + co-pilot) to a location across a date range. Counts toward fairness and blocks auto-fill on those days.",
+  plan_dates: "Dates",
+  crew_mode: "Crew",
+  same_crew: "Same crew",
+  per_day: "Per day",
+  same_crew_hint: "One crew covers the whole stretch.",
+  per_day_hint: "Pick a crew for each day.",
+  crew_label: "Crew",
+  add_crew: "Add crew",
+  remove_crew: "Remove",
+  choose_captain: "Captain",
+  choose_copilot: "Co-pilot",
+  confirm_plan: "Confirm plan",
+  plan_crew_empty: "Add at least one captain or co-pilot.",
+  plan_done: "Plan added",
   data_management: "Data management",
   export_data: "Export backup file",
   import_data: "Import backup file",
@@ -303,6 +330,7 @@ const ar: Dict = {
   not_eligible: "غير مؤهل",
   reason_inactive: "خارج التناوب",
   reason_double_booked: "معيّن مسبقاً في هذا اليوم",
+  reason_busy: "مشغول في هذا اليوم",
   confirm_swap: "تأكيد التعيين",
   unassign: "إلغاء التعيين",
   whose_turn: "دور من",
@@ -361,6 +389,8 @@ const ar: Dict = {
   priority_order: "ترتيب الأولوية",
   year_over_year_hint:
     "تتذكر الأولوية من خدم هذه المناسبة سابقاً — من خدمها أقل أو منذ زمن أطول يأتي أولاً.",
+  special_crew_hint:
+    "اختر طاقم هذه المناسبة — قائد (طيار) ومساعد طيار. اختر أحدهما أو كليهما.",
   no_specials: "لا توجد مناسبات مسجلة بعد.",
   no_locations: "لا توجد مناوبات موقع مسجلة بعد.",
   location_rotation_hint:
@@ -396,8 +426,31 @@ const ar: Dict = {
   window_days_hint: "عدد الأيام الأخيرة المحتسبة عند موازنة العبء. الافتراضي ٢١.",
   weekend_weight: "وزن مناوبة نهاية الأسبوع",
   special_weight: "وزن المناسبة الخاصة",
+  location_weight: "وزن مناوبة الموقع",
+  location_weight_hint: "مقدار احتساب كل يوم مناوبة موقع في موازنة العدالة.",
   standby_weight: "وزن الاحتياط المُفعّل",
   duty_weight: "وزن مناوبة يوم العمل",
+
+  plan_special_event: "تخطيط مناسبة خاصة",
+  plan_special_location: "تخطيط موقع خاص",
+  plan_event_hint:
+    "عيّن طاقماً (قائد + مساعد) لمناسبة عبر نطاق تواريخ. يُحتسبون مشغولين ويُمنعون من التعبئة التلقائية في تلك الأيام.",
+  plan_location_hint:
+    "عيّن طاقماً (قائد + مساعد) لموقع عبر نطاق تواريخ. يُحتسب في العدالة ويمنع التعبئة التلقائية في تلك الأيام.",
+  plan_dates: "التواريخ",
+  crew_mode: "الطاقم",
+  same_crew: "طاقم واحد",
+  per_day: "لكل يوم",
+  same_crew_hint: "طاقم واحد يغطي كامل المدة.",
+  per_day_hint: "اختر طاقماً لكل يوم.",
+  crew_label: "الطاقم",
+  add_crew: "إضافة طاقم",
+  remove_crew: "إزالة",
+  choose_captain: "القائد",
+  choose_copilot: "المساعد",
+  confirm_plan: "تأكيد الخطة",
+  plan_crew_empty: "أضف قائداً أو مساعداً واحداً على الأقل.",
+  plan_done: "تمت إضافة الخطة",
   data_management: "إدارة البيانات",
   export_data: "تصدير نسخة احتياطية",
   import_data: "استيراد نسخة احتياطية",

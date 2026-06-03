@@ -1,4 +1,4 @@
-import { addDays, diffDays, inWindow, isWeekend } from "./dates";
+import { addDays, diffDays, eachDay, inWindow, isWeekend } from "./dates";
 import {
   Assignment,
   LocationAssignment,
@@ -38,6 +38,7 @@ export function computeLoads(
   people: Person[],
   assignments: Assignment[],
   specials: SpecialAssignment[],
+  locations: LocationAssignment[],
   settings: Settings,
   role: SlotRole,
   refDate: string,
@@ -97,6 +98,22 @@ export function computeLoads(
     if (inWindow(s.date, refDate, settings.windowDays)) {
       l.weighted += settings.specialWeight;
       l.specials += 1;
+    }
+  }
+
+  // Location duty is real, counted work: every covered day in the window adds
+  // locationWeight to the person's load (and updates lastDutyDate) so the
+  // rotation rebalances around a planned stint — exactly like normal duty.
+  for (const loc of locations) {
+    const l = map.get(loc.personId);
+    if (!l) continue; // not in this role pool
+    const since = joinById.get(loc.personId);
+    for (const d of eachDay(loc.startDate, loc.endDate)) {
+      if (since && d < since) continue; // before they joined/returned
+      if (inWindow(d, refDate, settings.windowDays)) {
+        l.weighted += settings.locationWeight;
+      }
+      if (!l.lastDutyDate || d > l.lastDutyDate) l.lastDutyDate = d;
     }
   }
 
@@ -160,7 +177,7 @@ export interface Candidate {
   balance: number; // load - fairShare (negative = owed, positive = ahead)
   lastDutyDate: string | null;
   eligible: boolean;
-  reasonKey?: "reason_inactive" | "reason_double_booked";
+  reasonKey?: "reason_inactive" | "reason_double_booked" | "reason_busy";
   eventCount?: number;
   /** True for single-cover people: selectable manually, but never auto-filled. */
   singleCover?: boolean;
@@ -174,6 +191,7 @@ export function recommendForSlot(
   people: Person[],
   assignments: Assignment[],
   specials: SpecialAssignment[],
+  locations: LocationAssignment[],
   settings: Settings,
   role: SlotRole,
   date: string,
@@ -183,6 +201,7 @@ export function recommendForSlot(
     people,
     assignments,
     specials,
+    locations,
     settings,
     role,
     refDate,
@@ -191,6 +210,15 @@ export function recommendForSlot(
   const bookedSameDay = new Set(
     assignments.filter((a) => a.date === date).map((a) => a.personId),
   );
+  // People already committed to a special event or a location stint on this day
+  // are unavailable for normal duty — hard-blocked so auto-fill (and the manual
+  // picker) can never double-book a planned crew.
+  const busySameDay = new Set<string>([
+    ...specials.filter((s) => s.date === date).map((s) => s.personId),
+    ...locations
+      .filter((loc) => date >= loc.startDate && date <= loc.endDate)
+      .map((loc) => loc.personId),
+  ]);
 
   const list: Candidate[] = people
     .filter((p) => p.role === role)
@@ -205,6 +233,9 @@ export function recommendForSlot(
       } else if (bookedSameDay.has(p.id)) {
         eligible = false;
         reasonKey = "reason_double_booked";
+      } else if (busySameDay.has(p.id)) {
+        eligible = false;
+        reasonKey = "reason_busy";
       }
       return {
         person: p,
@@ -240,6 +271,7 @@ export function recommendForSpecial(
   people: Person[],
   assignments: Assignment[],
   specials: SpecialAssignment[],
+  locations: LocationAssignment[],
   settings: Settings,
   role: SlotRole,
   eventKey: string,
@@ -249,6 +281,7 @@ export function recommendForSpecial(
     people,
     assignments,
     specials,
+    locations,
     settings,
     role,
     refDate,
@@ -364,6 +397,7 @@ export function previewSwap(
   people: Person[],
   assignments: Assignment[],
   specials: SpecialAssignment[],
+  locations: LocationAssignment[],
   settings: Settings,
   role: SlotRole,
   date: string,
@@ -371,14 +405,16 @@ export function previewSwap(
   outPersonId: string | null,
   inPersonId: string,
   refDate: string,
+  crewIndex = 0,
 ): SwapPreview {
-  const next = assignments.filter(
-    (a) => !(a.date === date && a.crew === crew && a.role === role),
-  );
+  const sameSlot = (a: Assignment) =>
+    a.date === date &&
+    a.crew === crew &&
+    a.role === role &&
+    (a.crewIndex ?? 0) === crewIndex;
+  const next = assignments.filter((a) => !sameSlot(a));
   // Preserve activation state when swapping a standby occupant.
-  const prevSlot = assignments.find(
-    (a) => a.date === date && a.crew === crew && a.role === role,
-  );
+  const prevSlot = assignments.find(sameSlot);
   next.push({
     id: "preview",
     date,
@@ -386,17 +422,27 @@ export function previewSwap(
     role,
     personId: inPersonId,
     activated: crew === "standby" ? prevSlot?.activated : undefined,
+    crewIndex: crewIndex > 0 ? crewIndex : undefined,
   });
 
   const before = computeLoads(
     people,
     assignments,
     specials,
+    locations,
     settings,
     role,
     refDate,
   );
-  const after = computeLoads(people, next, specials, settings, role, refDate);
+  const after = computeLoads(
+    people,
+    next,
+    specials,
+    locations,
+    settings,
+    role,
+    refDate,
+  );
   const shareBefore = fairShare(before);
   const shareAfter = fairShare(after);
 
@@ -480,14 +526,20 @@ export function computeTotals(
     l.specials += 1;
   }
 
-  const share = fairShare(map);
-
+  // Location duty: count every covered day inside the range and fold its weight
+  // into the person's load, so the factual report's balance matches the
+  // scheduling fairness (which also counts location days).
   const locCount = new Map<string, number>();
   for (const loc of locations) {
-    if (inRange(loc.startDate)) {
+    const l = map.get(loc.personId);
+    for (const d of eachDay(loc.startDate, loc.endDate)) {
+      if (!inRange(d)) continue;
       locCount.set(loc.personId, (locCount.get(loc.personId) ?? 0) + 1);
+      if (l) l.weighted += settings.locationWeight;
     }
   }
+
+  const share = fairShare(map);
 
   return people
     .filter((p) => p.role === role && p.active && !p.singleCover)

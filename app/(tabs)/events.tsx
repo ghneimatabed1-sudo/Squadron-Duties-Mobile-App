@@ -30,7 +30,7 @@ import {
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { dayOfWeek, isValidISO, parseISO, todayISO } from "@/lib/dates";
-import { LocationAssignment, SlotRole } from "@/lib/types";
+import { LocationAssignment } from "@/lib/types";
 
 type Tab = "special" | "location";
 
@@ -129,27 +129,31 @@ function AddSpecialModal({ onClose }: { onClose: () => void }) {
 
   const [presetKey, setPresetKey] = useState("independence_day");
   const [customName, setCustomName] = useState("");
-  const [role, setRole] = useState<SlotRole>("captain");
   const [date, setDate] = useState(todayISO());
-  const [personId, setPersonId] = useState<string | null>(null);
+  const [captainId, setCaptainId] = useState<string | null>(null);
+  const [copilotId, setCopilotId] = useState<string | null>(null);
 
   const eventKey = presetKey === "custom" ? `custom_${customName.trim().toLowerCase()}` : presetKey;
-  const candidates = useMemo(
-    () => app.recommendSpecial(eventKey, role),
-    [app, eventKey, role],
+  const captainCands = useMemo(
+    () => app.recommendSpecial(eventKey, "captain"),
+    [app, eventKey],
   );
-  const firstEligible = candidates.find((c) => c.eligible)?.person.id;
+  const copilotCands = useMemo(
+    () => app.recommendSpecial(eventKey, "copilot"),
+    [app, eventKey],
+  );
 
   const eventName =
     presetKey === "custom"
       ? customName.trim()
       : t(PRESETS.find((p) => p.key === presetKey)!.labelKey);
 
-  const canSave = !!personId && !!eventName && isValidISO(date);
+  const canSave = !!eventName && isValidISO(date) && (!!captainId || !!copilotId);
 
   const submit = () => {
-    if (!canSave || !personId) return;
-    app.addSpecial(eventKey, eventName, date, role, personId);
+    if (!canSave) return;
+    if (captainId) app.addSpecial(eventKey, eventName, date, "captain", captainId);
+    if (copilotId) app.addSpecial(eventKey, eventName, date, "copilot", copilotId);
     onClose();
   };
 
@@ -162,7 +166,7 @@ function AddSpecialModal({ onClose }: { onClose: () => void }) {
           <IconButton icon="x" onPress={onClose} />
         </View>
 
-        <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={{ gap: 14 }}>
             <View style={{ gap: 6 }}>
               <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground }}>{t("event")}</Text>
@@ -196,67 +200,82 @@ function AddSpecialModal({ onClose }: { onClose: () => void }) {
               <Field label={t("event_name")} value={customName} onChangeText={setCustomName} placeholder={t("event_name")} />
             ) : null}
 
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground }}>{t("role")}</Text>
-              <Segmented
-                value={role}
-                onChange={(r) => {
-                  setRole(r);
-                  setPersonId(null);
-                }}
-                options={[
-                  { key: "captain", label: t("captain") },
-                  { key: "copilot", label: t("copilot") },
-                ]}
-              />
-            </View>
-
             <DateField label={t("date")} value={date} onChange={setDate} formatDate={(iso) => fmt(app, iso)} />
 
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground }}>{t("priority_order")}</Text>
-              {candidates.map((c) => {
-                const selected = c.person.id === personId;
-                return (
-                  <Pressable
-                    key={c.person.id}
-                    disabled={!c.eligible}
-                    onPress={() => {
-                      tap();
-                      setPersonId(c.person.id);
-                    }}
-                    style={{
-                      flexDirection: row,
-                      alignItems: "center",
-                      gap: 10,
-                      padding: 11,
-                      borderRadius: colors.radius,
-                      backgroundColor: selected ? colors.primary + "14" : colors.card,
-                      borderWidth: StyleSheet.hairlineWidth,
-                      borderColor: selected ? colors.primary : colors.border,
-                      opacity: c.eligible ? 1 : 0.5,
-                    }}
-                  >
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <View style={{ flexDirection: row, alignItems: "center", gap: 8 }}>
-                        <Text style={{ fontFamily: font.semibold, fontSize: 14.5, color: colors.foreground }}>{c.person.name}</Text>
-                        {c.person.id === firstEligible ? <Pill label={t("recommended")} tone="primary" /> : null}
-                      </View>
-                      <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground }}>
-                        {(c.eventCount ?? 0)} {t("times")}
-                      </Text>
-                    </View>
-                    {selected ? <Feather name="check-circle" size={18} color={colors.primary} /> : null}
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, lineHeight: 18 }}>
+              {t("special_crew_hint")}
+            </Text>
+
+            <CrewPicker title={t("captain")} candidates={captainCands} selectedId={captainId} onSelect={setCaptainId} />
+            <CrewPicker title={t("copilot")} candidates={copilotCands} selectedId={copilotId} onSelect={setCopilotId} />
 
             <Btn label={t("add")} icon="check" onPress={submit} disabled={!canSave} />
           </View>
         </ScrollView>
       </View>
     </Modal>
+  );
+}
+
+function CrewPicker({
+  title,
+  candidates,
+  selectedId,
+  onSelect,
+}: {
+  title: string;
+  candidates: ReturnType<ReturnType<typeof useApp>["recommendSpecial"]>;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const { colors, row } = useUI();
+  const app = useApp();
+  const t = app.t;
+  const firstEligible = candidates.find((c) => c.eligible)?.person.id;
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ fontFamily: font.semibold, fontSize: 13, color: colors.foreground }}>{title}</Text>
+      {candidates.length === 0 ? (
+        <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground }}>—</Text>
+      ) : (
+        candidates.map((c) => {
+          const selected = c.person.id === selectedId;
+          return (
+            <Pressable
+              key={c.person.id}
+              disabled={!c.eligible}
+              onPress={() => {
+                tap();
+                onSelect(selected ? null : c.person.id);
+              }}
+              style={{
+                flexDirection: row,
+                alignItems: "center",
+                gap: 10,
+                padding: 11,
+                borderRadius: colors.radius,
+                backgroundColor: selected ? colors.primary + "14" : colors.card,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: selected ? colors.primary : colors.border,
+                opacity: c.eligible ? 1 : 0.5,
+              }}
+            >
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={{ flexDirection: row, alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontFamily: font.semibold, fontSize: 14.5, color: colors.foreground }}>{c.person.name}</Text>
+                  {c.person.id === firstEligible ? <Pill label={t("recommended")} tone="primary" /> : null}
+                </View>
+                <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground }}>
+                  {(c.eventCount ?? 0)} {t("times")}
+                </Text>
+              </View>
+              {selected ? <Feather name="check-circle" size={18} color={colors.primary} /> : null}
+            </Pressable>
+          );
+        })
+      )}
+    </View>
   );
 }
 

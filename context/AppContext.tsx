@@ -32,6 +32,7 @@ import {
   Language,
   LocationAssignment,
   LocationDef,
+  MAX_EXTRA_CREWS,
   Person,
   Settings,
   SlotRole,
@@ -65,12 +66,14 @@ interface AppContextValue {
     date: string,
     crew: CrewKind,
     role: SlotRole,
+    crewIndex?: number,
   ) => Assignment | undefined;
   setAssignment: (
     date: string,
     crew: CrewKind,
     role: SlotRole,
     personId: string | null,
+    crewIndex?: number,
   ) => void;
   setWeekendBlock: (
     anyDate: string,
@@ -81,6 +84,11 @@ interface AppContextValue {
   toggleActivated: (date: string, role: SlotRole) => void;
   clearDay: (date: string) => void;
   generateWeek: (weekStart: string, weeks?: number) => void;
+
+  // occasional extra duty crews (2 captains + 2 co-pilots on a day, etc.)
+  extraCrewCount: (date: string) => number;
+  addCrew: (date: string) => void;
+  removeCrew: (date: string) => void;
 
   // per-weekend mode: block (one crew, default) vs split (one crew per day)
   isWeekendSplit: (date: string) => boolean;
@@ -114,6 +122,13 @@ interface AppContextValue {
   ) => void;
   removeLocation: (id: string) => void;
 
+  // plan-ahead crews (batch). Each special record is one person on one day for
+  // one role; a crew is captain + co-pilot, multiple crews per day = more
+  // records. Each location record is one person over a (possibly single-day)
+  // range.
+  planSpecials: (records: Omit<SpecialAssignment, "id">[]) => void;
+  planLocations: (records: Omit<LocationAssignment, "id">[]) => void;
+
   // managed locations + per-location exclusions
   addLocationDef: (name: string) => void;
   removeLocationDef: (id: string) => void;
@@ -138,6 +153,7 @@ interface AppContextValue {
     role: SlotRole,
     outId: string | null,
     inId: string,
+    crewIndex?: number,
   ) => SwapPreview;
   totals: (startDate: string, endDate: string, role: SlotRole) => PersonTotals[];
   personName: (id: string) => string;
@@ -197,6 +213,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         weekendWeight: DEFAULT_SETTINGS.weekendWeight,
         standbyWeight: DEFAULT_SETTINGS.standbyWeight,
         specialWeight: DEFAULT_SETTINGS.specialWeight,
+        locationWeight: DEFAULT_SETTINGS.locationWeight,
         windowDays: DEFAULT_SETTINGS.windowDays,
       },
     }));
@@ -257,9 +274,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ---- schedule ----
   const getAssignment = useCallback(
-    (date: string, crew: CrewKind, role: SlotRole) =>
+    (date: string, crew: CrewKind, role: SlotRole, crewIndex = 0) =>
       state.assignments.find(
-        (a) => a.date === date && a.crew === crew && a.role === role,
+        (a) =>
+          a.date === date &&
+          a.crew === crew &&
+          a.role === role &&
+          (a.crewIndex ?? 0) === crewIndex,
       ),
     [state.assignments],
   );
@@ -267,14 +288,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const upsert = useCallback(upsertAssignment, []);
 
   const setAssignment = useCallback(
-    (date: string, crew: CrewKind, role: SlotRole, personId: string | null) => {
+    (
+      date: string,
+      crew: CrewKind,
+      role: SlotRole,
+      personId: string | null,
+      crewIndex = 0,
+    ) => {
       setState((s) => ({
         ...s,
-        assignments: upsert(s.assignments, date, crew, role, personId),
+        assignments: upsert(s.assignments, date, crew, role, personId, crewIndex),
       }));
     },
     [upsert],
   );
+
+  const extraCrewCount = useCallback(
+    (date: string) => Math.max(0, Math.floor(state.extraCrews[date] ?? 0)),
+    [state.extraCrews],
+  );
+
+  const addCrew = useCallback((date: string) => {
+    setState((s) => {
+      const cur = Math.max(0, Math.floor(s.extraCrews[date] ?? 0));
+      if (cur >= MAX_EXTRA_CREWS) return s;
+      return { ...s, extraCrews: { ...s.extraCrews, [date]: cur + 1 } };
+    });
+  }, []);
+
+  const removeCrew = useCallback((date: string) => {
+    setState((s) => {
+      const cur = Math.max(0, Math.floor(s.extraCrews[date] ?? 0));
+      if (cur <= 0) return s;
+      const next = cur - 1;
+      const extraCrews = { ...s.extraCrews };
+      if (next === 0) delete extraCrews[date];
+      else extraCrews[date] = next;
+      // Drop the assignments of the crew being removed (the highest index).
+      const assignments = s.assignments.filter(
+        (a) => !(a.date === date && (a.crewIndex ?? 0) === cur),
+      );
+      return { ...s, extraCrews, assignments };
+    });
+  }, []);
 
   const setWeekendBlock = useCallback(
     (anyDate: string, crew: CrewKind, role: SlotRole, personId: string | null) => {
@@ -307,7 +363,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // to keep state, UI, and exports consistent (no hidden Fri/Sat picks).
         const crews: CrewKind[] = ["duty", "standby"];
         const roles: SlotRole[] = ["captain", "copilot"];
-        let next = s.assignments;
+        // Extra duty crews are a per-day, split-only exception. The block UI
+        // cannot display or manage them, so drop any extra-crew assignments and
+        // extraCrews counts across the weekend to avoid hidden/orphaned state.
+        const daySet = new Set(days);
+        let next = s.assignments.filter(
+          (a) => !(daySet.has(a.date) && (a.crewIndex ?? 0) > 0),
+        );
         for (const crew of crews) {
           for (const role of roles) {
             const ref = next.find(
@@ -320,7 +382,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
           }
         }
-        return { ...s, splitWeekends: rest, assignments: next };
+        const extraCrews = { ...s.extraCrews };
+        for (const d of days) delete extraCrews[d];
+        return { ...s, splitWeekends: rest, assignments: next, extraCrews };
       });
     },
     [upsert],
@@ -338,11 +402,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearDay = useCallback((date: string) => {
-    setState((s) => ({
-      ...s,
-      assignments: s.assignments.filter((a) => a.date !== date),
-      solos: s.solos.filter((so) => so.date !== date),
-    }));
+    setState((s) => {
+      const extraCrews = { ...s.extraCrews };
+      delete extraCrews[date];
+      return {
+        ...s,
+        assignments: s.assignments.filter((a) => a.date !== date),
+        solos: s.solos.filter((so) => so.date !== date),
+        extraCrews,
+      };
+    });
   }, []);
 
   // ---- non-counting single-person cover ----
@@ -369,8 +438,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           people: s.people,
           assignments: s.assignments,
           specials: s.specials,
+          locations: s.locations,
           settings: s.settings,
           splitWeekends: s.splitWeekends,
+          extraCrews: s.extraCrews,
         },
         dates,
       );
@@ -438,6 +509,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       locations: s.locations.filter((l) => l.id !== id),
     }));
   }, []);
+
+  const planSpecials = useCallback(
+    (records: Omit<SpecialAssignment, "id">[]) => {
+      if (!records.length) return;
+      setState((s) => ({
+        ...s,
+        specials: [
+          ...s.specials,
+          ...records.map((r) => ({ ...r, id: uid() })),
+        ],
+      }));
+    },
+    [],
+  );
+
+  const planLocations = useCallback(
+    (records: Omit<LocationAssignment, "id">[]) => {
+      if (!records.length) return;
+      setState((s) => ({
+        ...s,
+        locations: [
+          ...s.locations,
+          ...records.map((r) => ({ ...r, id: uid() })),
+        ],
+      }));
+    },
+    [],
+  );
 
   // ---- managed locations + exclusions ----
   const addLocationDef = useCallback((name: string) => {
@@ -519,6 +618,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         state.people,
         state.assignments,
         state.specials,
+        state.locations,
         state.settings,
         role,
         date,
@@ -528,7 +628,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // the backward-looking window).
         date,
       ),
-    [state.people, state.assignments, state.specials, state.settings],
+    [
+      state.people,
+      state.assignments,
+      state.specials,
+      state.locations,
+      state.settings,
+    ],
   );
 
   const recommendSpecial = useCallback(
@@ -537,12 +643,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         state.people,
         state.assignments,
         state.specials,
+        state.locations,
         state.settings,
         role,
         eventKey,
         todayISO(),
       ),
-    [state.people, state.assignments, state.specials, state.settings],
+    [
+      state.people,
+      state.assignments,
+      state.specials,
+      state.locations,
+      state.settings,
+    ],
   );
 
   const recommendLocation = useCallback(
@@ -562,11 +675,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       role: SlotRole,
       outId: string | null,
       inId: string,
+      crewIndex = 0,
     ) =>
       previewSwap(
         state.people,
         state.assignments,
         state.specials,
+        state.locations,
         state.settings,
         role,
         date,
@@ -576,8 +691,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Reference the slot's own date so the before/after balances reflect
         // the window around that day (consistent with recommendSlot).
         date,
+        crewIndex,
       ),
-    [state.people, state.assignments, state.specials, state.settings],
+    [
+      state.people,
+      state.assignments,
+      state.specials,
+      state.locations,
+      state.settings,
+    ],
   );
 
   const totals = useCallback(
@@ -629,6 +751,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleActivated,
     clearDay,
     generateWeek,
+    extraCrewCount,
+    addCrew,
+    removeCrew,
     isWeekendSplit,
     setWeekendSplit,
     getSolo,
@@ -636,6 +761,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addSpecial,
     removeSpecial,
     addLocation,
+    planSpecials,
+    planLocations,
     updateLocation,
     removeLocation,
     addLocationDef,

@@ -47,6 +47,17 @@ export function weekendDates(s: string): string[] {
   return [addDays(ws, 4), addDays(ws, 5), addDays(ws, 6)];
 }
 
+// Every ISO day in the inclusive range [start, end]. Empty if end < start.
+export function eachDay(start: string, end: string): string[] {
+  const out: string[] = [];
+  let cur = start;
+  while (cur <= end) {
+    out.push(cur);
+    cur = addDays(cur, 1);
+  }
+  return out;
+}
+
 export function diffDays(a: string, b: string): number {
   return Math.round(
     (parseISO(a).getTime() - parseISO(b).getTime()) / 86400000,

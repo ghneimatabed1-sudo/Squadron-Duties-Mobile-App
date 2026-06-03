@@ -127,13 +127,9 @@ export default function TrackingScreen() {
               })}
             </View>
 
-            <View style={{ flexDirection: row, gap: 12, marginTop: 12 }}>
-              <View style={{ flex: 1 }}>
-                <DateField label={t("from")} value={from} onChange={setFrom} formatDate={(iso) => fmtDate(app, iso)} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <DateField label={t("to")} value={to} onChange={setTo} formatDate={(iso) => fmtDate(app, iso)} />
-              </View>
+            <View style={{ gap: 12, marginTop: 14 }}>
+              <DateField label={t("from")} value={from} onChange={setFrom} formatDate={(iso) => fmtDate(app, iso)} />
+              <DateField label={t("to")} value={to} onChange={setTo} formatDate={(iso) => fmtDate(app, iso)} />
             </View>
 
             <View style={{ height: 16 }} />

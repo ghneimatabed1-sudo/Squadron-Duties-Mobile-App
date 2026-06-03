@@ -485,7 +485,13 @@ export function DateField({
           onPress={() => onChange(shiftDate(value, -1))}
         />
         <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
           style={{
+            flex: 1,
+            textAlign: "center",
+            marginHorizontal: 4,
             fontFamily: font.semibold,
             fontSize: 15,
             color: colors.foreground,

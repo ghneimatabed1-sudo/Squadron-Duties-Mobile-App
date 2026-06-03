@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { PlanCrewSheet } from "@/components/PlanCrewSheet";
 import { SlotEditorSheet, SlotTarget } from "@/components/SlotEditorSheet";
 import { SoloPickerSheet } from "@/components/SoloPickerSheet";
 import {
@@ -29,7 +30,7 @@ import {
 } from "@/lib/dates";
 import { exportRosterSheet } from "@/lib/io";
 import { buildRosterHtml, RosterDay, RosterLocation } from "@/lib/rosterHtml";
-import { CrewKind, SlotRole } from "@/lib/types";
+import { CrewKind, MAX_EXTRA_CREWS, SlotRole } from "@/lib/types";
 
 export default function ScheduleScreen() {
   const { colors, row, textAlign } = useUI();
@@ -39,6 +40,8 @@ export default function ScheduleScreen() {
   const [soloDate, setSoloDate] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [planEventOpen, setPlanEventOpen] = useState(false);
+  const [planLocationOpen, setPlanLocationOpen] = useState(false);
 
   if (!app.ready) return <Loading />;
 
@@ -132,12 +135,39 @@ export default function ScheduleScreen() {
               />
             </View>
 
+            <View style={{ flexDirection: row, gap: 8, marginBottom: 14 }}>
+              <Btn
+                label={t("plan_special_event")}
+                icon="star"
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  tap();
+                  setPlanEventOpen(true);
+                }}
+                style={{ flex: 1 }}
+              />
+              <Btn
+                label={t("plan_special_location")}
+                icon="map-pin"
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  tap();
+                  setPlanLocationOpen(true);
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+
             {weekdayDates.map((date) => (
               <DayCard
                 key={date}
                 date={date}
                 formatDate={formatDate}
-                onSlot={(crew, role) => setTarget({ date, crew, role })}
+                onSlot={(crew, role, crewIndex) =>
+                  setTarget({ date, crew, role, crewIndex })
+                }
                 onSolo={() => setSoloDate(date)}
               />
             ))}
@@ -152,7 +182,9 @@ export default function ScheduleScreen() {
                     key={date}
                     date={date}
                     formatDate={formatDate}
-                    onSlot={(crew, role) => setTarget({ date, crew, role })}
+                    onSlot={(crew, role, crewIndex) =>
+                      setTarget({ date, crew, role, crewIndex })
+                    }
                     onSolo={() => setSoloDate(date)}
                   />
                 ))}
@@ -193,6 +225,16 @@ export default function ScheduleScreen() {
           setPlanOpen(false);
           app.generateWeek(weekStart, weeks);
         }}
+      />
+      <PlanCrewSheet
+        kind="event"
+        visible={planEventOpen}
+        onClose={() => setPlanEventOpen(false)}
+      />
+      <PlanCrewSheet
+        kind="location"
+        visible={planLocationOpen}
+        onClose={() => setPlanLocationOpen(false)}
       />
     </View>
   );
@@ -401,7 +443,7 @@ function DayCard({
 }: {
   date: string;
   formatDate: (iso: string) => string;
-  onSlot: (crew: CrewKind, role: SlotRole) => void;
+  onSlot: (crew: CrewKind, role: SlotRole, crewIndex: number) => void;
   onSolo: () => void;
 }) {
   const { colors, row, textAlign } = useUI();
@@ -412,6 +454,7 @@ function DayCard({
   const isToday = date === todayISO();
   const dow = dayOfWeek(date);
   const d = parseISO(date);
+  const extraCrews = app.extraCrewCount(date);
 
   return (
     <Card
@@ -450,6 +493,47 @@ function DayCard({
       </View>
 
       <CrewBlock label={t("duty_crew")} crew="duty" date={date} onSlot={onSlot} icon="shield" />
+      {Array.from({ length: extraCrews }).map((_, i) => {
+        const idx = i + 1;
+        return (
+          <View key={idx} style={{ marginTop: 10 }}>
+            <CrewBlock
+              label={`${t("crew_label")} ${idx + 1}`}
+              crew="duty"
+              date={date}
+              crewIndex={idx}
+              onSlot={onSlot}
+              icon="shield"
+              onRemove={idx === extraCrews ? () => app.removeCrew(date) : undefined}
+            />
+          </View>
+        );
+      })}
+      {extraCrews < MAX_EXTRA_CREWS ? (
+        <Pressable
+          onPress={() => {
+            tap();
+            app.addCrew(date);
+          }}
+          style={{
+            flexDirection: row,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            marginTop: 8,
+            paddingVertical: 9,
+            borderRadius: colors.radius,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: colors.border,
+          }}
+        >
+          <Feather name="plus" size={14} color={colors.primary} />
+          <Text style={{ fontFamily: font.semibold, fontSize: 12.5, color: colors.primary }}>
+            {t("add_crew")}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <View style={{ height: 10 }} />
       <CrewBlock label={t("standby_crew")} crew="standby" date={date} onSlot={onSlot} icon="clock" />
 
@@ -494,12 +578,16 @@ function CrewBlock({
   date,
   onSlot,
   icon,
+  crewIndex = 0,
+  onRemove,
 }: {
   label: string;
   crew: CrewKind;
   date: string;
-  onSlot: (crew: CrewKind, role: SlotRole) => void;
+  onSlot: (crew: CrewKind, role: SlotRole, crewIndex: number) => void;
   icon: keyof typeof Feather.glyphMap;
+  crewIndex?: number;
+  onRemove?: () => void;
 }) {
   const { colors, row, textAlign } = useUI();
   const app = useApp();
@@ -517,18 +605,27 @@ function CrewBlock({
     >
       <View style={{ flexDirection: row, alignItems: "center", gap: 6 }}>
         <Feather name={icon} size={13} color={colors.mutedForeground} />
-        <Text style={{ fontFamily: font.semibold, fontSize: 12, color: colors.mutedForeground, textAlign }}>
+        <Text style={{ flex: 1, fontFamily: font.semibold, fontSize: 12, color: colors.mutedForeground, textAlign }}>
           {label}
         </Text>
+        {onRemove ? (
+          <IconButton
+            icon="x"
+            size={14}
+            onPress={onRemove}
+            color={colors.mutedForeground}
+            bg="transparent"
+          />
+        ) : null}
       </View>
       {roles.map((role) => {
-        const a = app.getAssignment(date, crew, role);
+        const a = app.getAssignment(date, crew, role, crewIndex);
         return (
           <Pressable
             key={role}
             onPress={() => {
               tap();
-              onSlot(crew, role);
+              onSlot(crew, role, crewIndex);
             }}
             style={{
               flexDirection: row,

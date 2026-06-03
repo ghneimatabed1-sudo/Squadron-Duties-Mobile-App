@@ -3,6 +3,7 @@ import { recommendForSlot } from "./fairness";
 import {
   Assignment,
   CrewKind,
+  LocationAssignment,
   Person,
   Settings,
   SlotRole,
@@ -27,15 +28,17 @@ export function upsertAssignment(
   crew: CrewKind,
   role: SlotRole,
   personId: string | null,
+  crewIndex = 0,
 ): Assignment[] {
-  let rest = list.filter(
-    (a) => !(a.date === date && a.crew === crew && a.role === role),
-  );
+  const sameSlot = (a: Assignment) =>
+    a.date === date &&
+    a.crew === crew &&
+    a.role === role &&
+    (a.crewIndex ?? 0) === crewIndex;
+  let rest = list.filter((a) => !sameSlot(a));
   if (!personId) return rest;
   rest = rest.filter((a) => !(a.date === date && a.personId === personId));
-  const prev = list.find(
-    (a) => a.date === date && a.crew === crew && a.role === role,
-  );
+  const prev = list.find(sameSlot);
   rest.push({
     id: prev?.id ?? uid(),
     date,
@@ -43,6 +46,7 @@ export function upsertAssignment(
     role,
     personId,
     activated: crew === "standby" ? (prev?.activated ?? false) : undefined,
+    crewIndex: crewIndex > 0 ? crewIndex : undefined,
   });
   return rest;
 }
@@ -51,8 +55,11 @@ export interface AutoFillInput {
   people: Person[];
   assignments: Assignment[];
   specials: SpecialAssignment[];
+  locations: LocationAssignment[];
   settings: Settings;
   splitWeekends: string[];
+  /** Per-day count of extra duty crews (date -> n). Missing = the usual 1 crew. */
+  extraCrews?: Record<string, number>;
 }
 
 /**
@@ -73,47 +80,71 @@ export interface AutoFillInput {
  * Pure: returns a new assignments array and never mutates the input.
  */
 export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
-  const { people, specials, settings } = input;
+  const { people, specials, locations, settings } = input;
   const dateSet = new Set(dates);
+  // Is this person committed elsewhere (special event or location stint) on `d`?
+  const busyOn = (personId: string, d: string): boolean =>
+    specials.some((s) => s.date === d && s.personId === personId) ||
+    locations.some(
+      (loc) =>
+        loc.personId === personId && d >= loc.startDate && d <= loc.endDate,
+    );
   const splitSet = new Set(input.splitWeekends);
-  const crews: CrewKind[] = ["duty", "standby"];
+  const extraCrews = input.extraCrews ?? {};
   const roles: SlotRole[] = ["captain", "copilot"];
   const working = [...input.assignments];
 
+  // A fillable crew slot: a crew kind/index together with the set of days it
+  // spans. The base duty crew and standby honour weekend BLOCK behaviour (one
+  // crew written across Thu–Fri–Sat); extra duty crews are always per-day.
+  interface CrewSlot {
+    crew: CrewKind;
+    crewIndex: number;
+    targetDates: string[];
+  }
+
   for (const date of dates) {
     const block = isWeekend(date) && !splitSet.has(weekendDates(date)[0]);
-    const targetDates = block
+    const blockDates = block
       ? weekendDates(date).filter((d) => dateSet.has(d))
       : [date];
-    if (block && date !== targetDates[0]) continue;
+    const isBlockRef = !block || date === blockDates[0];
 
-    for (const crew of crews) {
+    const slots: CrewSlot[] = [];
+    // Base crew + standby: skipped on the non-reference days of a block weekend
+    // (they are written once across the whole block from its first day).
+    if (isBlockRef) {
+      slots.push({ crew: "duty", crewIndex: 0, targetDates: blockDates });
+      slots.push({ crew: "standby", crewIndex: 0, targetDates: blockDates });
+    }
+    // Extra duty crews are a per-day exception — filled on this day alone.
+    const nExtra = Math.max(0, Math.floor(extraCrews[date] ?? 0));
+    for (let i = 1; i <= nExtra; i++) {
+      slots.push({ crew: "duty", crewIndex: i, targetDates: [date] });
+    }
+
+    for (const { crew, crewIndex, targetDates } of slots) {
       for (const role of roles) {
+        const inSlot = (a: Assignment) =>
+          a.crew === crew &&
+          a.role === role &&
+          (a.crewIndex ?? 0) === crewIndex;
         const emptyDays = targetDates.filter(
-          (d) =>
-            !working.find(
-              (a) => a.date === d && a.crew === crew && a.role === role,
-            ),
+          (d) => !working.find((a) => a.date === d && inSlot(a)),
         );
         if (emptyDays.length === 0) continue;
 
         const ref = targetDates[0];
         const existing =
-          working.find(
-            (a) => a.date === ref && a.crew === crew && a.role === role,
-          ) ??
-          working.find(
-            (a) =>
-              targetDates.includes(a.date) &&
-              a.crew === crew &&
-              a.role === role,
-          );
+          working.find((a) => a.date === ref && inSlot(a)) ??
+          working.find((a) => targetDates.includes(a.date) && inSlot(a));
         let personId = existing?.personId ?? null;
         if (!personId) {
           const cands = recommendForSlot(
             people,
             working,
             specials,
+            locations,
             settings,
             role,
             ref,
@@ -128,14 +159,19 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
                   (d) =>
                     !working.find(
                       (a) => a.date === d && a.personId === c.person.id,
-                    ),
+                    ) && !busyOn(c.person.id, d),
                 ),
             )?.person.id ?? null;
         }
         if (!personId) continue;
 
         for (const d of emptyDays) {
-          if (working.find((a) => a.date === d && a.personId === personId)) {
+          // Never double-book: skip a day where this person already holds a slot
+          // or is committed to a planned special/location.
+          if (
+            working.find((a) => a.date === d && a.personId === personId) ||
+            busyOn(personId, d)
+          ) {
             continue;
           }
           working.push({
@@ -145,6 +181,7 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
             role,
             personId,
             activated: crew === "standby" ? false : undefined,
+            crewIndex: crewIndex > 0 ? crewIndex : undefined,
           });
         }
       }

@@ -21,6 +21,8 @@ export interface SlotTarget {
   role: SlotRole;
   /** When true, the slot belongs to a block weekend: edits apply to all 3 days. */
   weekendBlock?: boolean;
+  /** Duty crew index: 0 = base crew, 1+ = an extra duty crew on that day. */
+  crewIndex?: number;
 }
 
 function balancePill(
@@ -76,7 +78,7 @@ export function SlotEditorSheet({
   const isBlock = target?.weekendBlock ?? false;
   const visible = target !== null;
   const current = target
-    ? app.getAssignment(target.date, target.crew, target.role)
+    ? app.getAssignment(target.date, target.crew, target.role, target.crewIndex ?? 0)
     : undefined;
 
   const candidates = useMemo(
@@ -92,6 +94,7 @@ export function SlotEditorSheet({
       target.role,
       current?.personId ?? null,
       pendingId,
+      target.crewIndex ?? 0,
     );
   }, [target, pendingId, current, app]);
 
@@ -105,7 +108,13 @@ export function SlotEditorSheet({
     if (target.weekendBlock) {
       app.setWeekendBlock(target.date, target.crew, target.role, personId);
     } else {
-      app.setAssignment(target.date, target.crew, target.role, personId);
+      app.setAssignment(
+        target.date,
+        target.crew,
+        target.role,
+        personId,
+        target.crewIndex ?? 0,
+      );
     }
     tap();
     close();

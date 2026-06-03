@@ -114,6 +114,11 @@ export default function SettingsScreen() {
           <Stepper label={t("standby_weight")} value={s.standbyWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ standbyWeight: v })} format={(v) => v.toFixed(1)} />
           <Divider />
           <Stepper label={t("special_weight")} value={s.specialWeight} min={0.5} max={10} step={0.5} onChange={(v) => app.updateSettings({ specialWeight: v })} format={(v) => v.toFixed(1)} />
+          <Divider />
+          <Stepper label={t("location_weight")} value={s.locationWeight} min={0.5} max={10} step={0.5} onChange={(v) => app.updateSettings({ locationWeight: v })} format={(v) => v.toFixed(1)} />
+          <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, textAlign }}>
+            {t("location_weight_hint")}
+          </Text>
         </Card>
         <Btn label={t("reset_weights")} variant="ghost" icon="rotate-ccw" onPress={() => app.resetWeights()} style={{ marginTop: 12 }} />
 

@@ -9,6 +9,7 @@ import {
   Language,
   LocationAssignment,
   LocationDef,
+  MAX_EXTRA_CREWS,
   Person,
   Settings,
   SlotRole,
@@ -89,6 +90,12 @@ function parseAssignment(v: unknown, peopleIds: Set<string>): Assignment | null 
     personId: v.personId,
   };
   if (v.crew === "standby") a.activated = v.activated === true;
+  // Extra duty crews (crewIndex >= 1) only apply to duty slots; standby is
+  // always a single crew. Clamp to a sane integer range.
+  if (v.crew === "duty" && isNum(v.crewIndex)) {
+    const idx = Math.floor(v.crewIndex);
+    if (idx >= 1 && idx <= MAX_EXTRA_CREWS) a.crewIndex = idx;
+  }
   return a;
 }
 
@@ -188,6 +195,12 @@ function parseSettings(v: unknown): Settings {
     weekendWeight: num(s.weekendWeight, DEFAULT_SETTINGS.weekendWeight, 0.5, 10),
     standbyWeight: num(s.standbyWeight, DEFAULT_SETTINGS.standbyWeight, 0.5, 10),
     specialWeight: num(s.specialWeight, DEFAULT_SETTINGS.specialWeight, 0.5, 10),
+    locationWeight: num(
+      s.locationWeight,
+      DEFAULT_SETTINGS.locationWeight,
+      0.5,
+      10,
+    ),
   };
 }
 
@@ -219,8 +232,8 @@ export function normalize(obj: unknown): AppState {
   for (const raw of obj.assignments) {
     const a = parseAssignment(raw, peopleIds);
     if (!a) continue;
-    // one person per (date, crew, role) slot
-    const key = `${a.date}|${a.crew}|${a.role}`;
+    // one person per (date, crew, role, crewIndex) slot
+    const key = `${a.date}|${a.crew}|${a.role}|${a.crewIndex ?? 0}`;
     if (slotKeys.has(key)) continue;
     slotKeys.add(key);
     assignments.push(a);
@@ -285,6 +298,17 @@ export function normalize(obj: unknown): AppState {
     }
   }
 
+  // Per-day extra duty crew counts (date -> n). Drop malformed keys/values and
+  // clamp counts to the allowed range; 0/negative entries are simply omitted.
+  const extraCrews: Record<string, number> = {};
+  if (isObj(obj.extraCrews)) {
+    for (const [date, raw] of Object.entries(obj.extraCrews)) {
+      if (!isValidISO(date) || !isNum(raw)) continue;
+      const n = Math.min(MAX_EXTRA_CREWS, Math.floor(raw));
+      if (n >= 1) extraCrews[date] = n;
+    }
+  }
+
   return {
     people,
     assignments,
@@ -293,6 +317,7 @@ export function normalize(obj: unknown): AppState {
     locationDefs,
     solos,
     splitWeekends,
+    extraCrews,
     settings: parseSettings(obj.settings),
     version: 1,
   };
