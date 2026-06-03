@@ -60,6 +60,7 @@
     "@types/react-dom": "~19.1.7",
     "@types/react-test-renderer": "~19.1.0",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
+    "babel-preset-expo": "~54.0.0",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2",
     "vitest": "^4.1.0"
