@@ -312,6 +312,26 @@ describe("6-month squadron simulation", () => {
     expect(Math.abs(jamal.weighted - share)).toBeLessThan(settings.weekendWeight);
   });
 
+  it("does not give a returning pilot back-to-back duty in their first week back", () => {
+    const firstWeekEnd = addDays(returnDate, 6);
+    const dutyDays = assignments
+      .filter(
+        (a) =>
+          a.personId === "p5" &&
+          a.crew === "duty" &&
+          a.date >= returnDate &&
+          a.date <= firstWeekEnd,
+      )
+      .map((a) => a.date)
+      .sort();
+    for (let i = 1; i < dutyDays.length; i++) {
+      expect(
+        addDays(dutyDays[i - 1], 1) === dutyDays[i],
+        `returner back-to-back duty ${dutyDays[i - 1]}->${dutyDays[i]}`,
+      ).toBe(false);
+    }
+  });
+
   it("keeps the established pool fair over the full season", () => {
     // Among captains present and active the entire 6 months (exclude the
     // newcomer and single-cover commander), weighted totals should be close.
