@@ -1,6 +1,7 @@
 import { addDays, diffDays, eachDay, inWindow, isWeekend } from "./dates";
 import {
   Assignment,
+  CrewKind,
   LocationAssignment,
   Person,
   Settings,
@@ -200,6 +201,13 @@ export function recommendForSlot(
   role: SlotRole,
   date: string,
   refDate: string,
+  /**
+   * Which crew this slot belongs to. For duty slots the ranking is made
+   * category-aware (see `rankLoad` below) so weekday and weekend duty balance
+   * independently — a heavy weekend no longer exempts someone from weekdays,
+   * and vice-versa. Standby keeps the plain weighted-load ranking.
+   */
+  crew: CrewKind = "duty",
 ): Candidate[] {
   const loads = computeLoads(
     people,
@@ -211,6 +219,22 @@ export function recommendForSlot(
     refDate,
   );
   const share = fairShare(loads);
+  // Category-aware load used purely for ranking. When filling a weekday duty
+  // slot we discount the weekend-duty weight (and the reverse for weekend
+  // slots) so the two categories rotate independently — this is what keeps the
+  // weekdays split between everyone available instead of dumping the whole
+  // work-week on one person while another "rests" behind a heavy weekend.
+  // The neutralised `weighted` total still drives the tiebreak, so newcomers
+  // and returners stay protected exactly as before.
+  const slotIsWeekend = isWeekend(date);
+  const rankLoad = (personId: string): number => {
+    const l = loads.get(personId);
+    if (!l) return 0;
+    if (crew !== "duty") return l.weighted;
+    return slotIsWeekend
+      ? l.weighted - settings.dutyWeight * (l.dutyDays - l.weekendDuty)
+      : l.weighted - settings.weekendWeight * l.weekendDuty;
+  };
   const bookedSameDay = new Set(
     assignments.filter((a) => a.date === date).map((a) => a.personId),
   );
@@ -257,6 +281,12 @@ export function recommendForSlot(
     // Normal pilots rank above single-cover people, so auto-fill and the
     // "recommended" hint always prefer the regular rotation.
     if (!!a.singleCover !== !!b.singleCover) return a.singleCover ? 1 : -1;
+    // Primary: category-aware owed (weekday vs weekend balance independently).
+    const ra = rankLoad(a.person.id);
+    const rb = rankLoad(b.person.id);
+    if (ra !== rb) return ra - rb;
+    // Tiebreak by overall weighted load, so cross-category fairness still wins
+    // when one category is tied (and newcomers stay protected here).
     if (a.load !== b.load) return a.load - b.load;
     const la = a.lastDutyDate ?? "0";
     const lb = b.lastDutyDate ?? "0";

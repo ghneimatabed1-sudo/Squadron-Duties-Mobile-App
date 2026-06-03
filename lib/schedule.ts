@@ -149,6 +149,7 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
             role,
             ref,
             ref,
+            crew,
           );
           personId =
             cands.find(
