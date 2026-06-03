@@ -40,7 +40,10 @@ jobs:
 
       - name: Build unsigned archive
         run: |
+          set -o pipefail
           cd ios
+          n=$(ls -1 *.xcworkspace 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$n" != "1" ]; then echo "Expected exactly one .xcworkspace, found $n"; ls -la; exit 1; fi
           APP_NAME=$(basename *.xcworkspace .xcworkspace)
           echo "Using scheme/app: $APP_NAME"
           xcodebuild \
@@ -53,11 +56,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" | xcpretty || true
-          test -d "$PWD/build/$APP_NAME.xcarchive" || { echo "Archive failed"; exit 1; }
+            DEVELOPMENT_TEAM="" | xcpretty
+          test -d "$PWD/build/$APP_NAME.xcarchive" || { echo "Archive folder missing"; exit 1; }
 
       - name: Package unsigned IPA
         run: |
+          set -o pipefail
           cd ios
           APP_NAME=$(basename *.xcworkspace .xcworkspace)
           cd build
@@ -79,6 +83,11 @@ jobs:
           tag_name: ios-v1.0.0
           name: Squadron Duty Scheduler - iOS (unsigned IPA)
           body: |
-            Unsigned iOS IPA built on a macOS GitHub Actions runner.
-            Install it on your iPhone with your signing app (AltStore, Sideloadly, ESign, etc.) - it will re-sign with your Apple ID.
+            Unsigned iOS IPA built on a macOS GitHub Actions runner (no Apple Developer account required to build).
+
+            How to install on your iPhone:
+            1. Download SquadronDutyScheduler-unsigned.ipa below.
+            2. Sign and install it with an on-device / sideload tool (AltStore, Sideloadly, or ESign) using your own Apple ID.
+
+            Note: with a FREE Apple ID, sideloaded apps stay signed for ~7 days, then must be re-installed/re-signed when the signature expires. A paid Apple Developer account extends this to ~1 year.
           files: ios/build/SquadronDutyScheduler-unsigned.ipa
