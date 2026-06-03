@@ -24,10 +24,11 @@ export function dayOfWeek(s: string): number {
   return parseISO(s).getDay(); // 0=Sun ... 6=Sat
 }
 
-// Week starts on Sunday.
+// Week starts on Monday (week runs Monday → Sunday).
 export function startOfWeek(s: string): string {
   const d = parseISO(s);
-  d.setDate(d.getDate() - d.getDay());
+  const diff = (d.getDay() + 6) % 7; // days since Monday (Sun=6, Mon=0 ... Sat=5)
+  d.setDate(d.getDate() - diff);
   return toISO(d);
 }
 
@@ -42,9 +43,10 @@ export function isWeekend(s: string): boolean {
 }
 
 // Weekend dates (Thu/Fri/Sat) for the week that contains `s`.
+// Week starts on Monday, so Thu/Fri/Sat are offsets 3/4/5 from the week start.
 export function weekendDates(s: string): string[] {
   const ws = startOfWeek(s);
-  return [addDays(ws, 4), addDays(ws, 5), addDays(ws, 6)];
+  return [addDays(ws, 3), addDays(ws, 4), addDays(ws, 5)];
 }
 
 // Every ISO day in the inclusive range [start, end]. Empty if end < start.

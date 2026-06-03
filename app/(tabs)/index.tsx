@@ -46,9 +46,10 @@ export default function ScheduleScreen() {
   if (!app.ready) return <Loading />;
 
   const t = app.t;
-  const dates = weekDates(weekStart);
-  const weekdayDates = dates.slice(0, 4); // Sun–Wed
-  const weekendGroup = dates.slice(4); // Thu–Sat
+  const dates = weekDates(weekStart); // Mon → Sun
+  const preWeekend = dates.slice(0, 3); // Mon–Wed
+  const weekendGroup = dates.slice(3, 6); // Thu–Sat
+  const postWeekend = dates.slice(6); // Sun
   const weekendSplit = app.isWeekendSplit(weekendGroup[0]);
   const formatDate = (iso: string) => {
     const d = parseISO(iso);
@@ -160,7 +161,7 @@ export default function ScheduleScreen() {
               />
             </View>
 
-            {weekdayDates.map((date) => (
+            {preWeekend.map((date) => (
               <DayCard
                 key={date}
                 date={date}
@@ -199,6 +200,18 @@ export default function ScheduleScreen() {
                 onClear={() => weekendGroup.forEach((d) => app.clearDay(d))}
               />
             )}
+
+            {postWeekend.map((date) => (
+              <DayCard
+                key={date}
+                date={date}
+                formatDate={formatDate}
+                onSlot={(crew, role, crewIndex) =>
+                  setTarget({ date, crew, role, crewIndex })
+                }
+                onSolo={() => setSoloDate(date)}
+              />
+            ))}
           </>
         )}
       </Screen>
