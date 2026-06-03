@@ -63,6 +63,21 @@ export function inWindow(
   return d >= 0 && d < windowDays;
 }
 
+export function startOfMonth(s: string): string {
+  const d = parseISO(s);
+  return toISO(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+export function endOfMonth(s: string): string {
+  const d = parseISO(s);
+  return toISO(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+}
+
+export function addMonths(s: string, n: number): string {
+  const d = parseISO(s);
+  return toISO(new Date(d.getFullYear(), d.getMonth() + n, d.getDate()));
+}
+
 export function isValidISO(s: unknown): s is string {
   if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const [y, m, d] = s.split("-").map(Number);

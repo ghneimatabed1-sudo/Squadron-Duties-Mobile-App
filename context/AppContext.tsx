@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 
-import { addDays, isWeekend, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
+import { addDays, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
 import {
   Candidate,
   computeTotals,
@@ -21,6 +21,7 @@ import {
   SwapPreview,
 } from "@/lib/fairness";
 import { makeT, weekdayNames, weekdayShort } from "@/lib/i18n";
+import { autoFill, upsertAssignment } from "@/lib/schedule";
 import { loadState, normalize, saveState } from "@/lib/storage";
 import {
   AppState,
@@ -55,7 +56,7 @@ interface AppContextValue {
   resetWeights: () => void;
 
   // people
-  addPerson: (name: string, role: SlotRole) => void;
+  addPerson: (name: string, role: SlotRole, singleCover?: boolean) => void;
   setPersonActive: (id: string, active: boolean) => void;
   deletePerson: (id: string) => void;
 
@@ -138,7 +139,7 @@ interface AppContextValue {
     outId: string | null,
     inId: string,
   ) => SwapPreview;
-  totals: (windowDays: number, role: SlotRole) => PersonTotals[];
+  totals: (startDate: string, endDate: string, role: SlotRole) => PersonTotals[];
   personName: (id: string) => string;
 
   // data
@@ -202,21 +203,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ---- people ----
-  const addPerson = useCallback((name: string, role: SlotRole) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setState((s) => ({
-      ...s,
-      people: [
-        ...s.people,
-        { id: uid(), name: trimmed, role, active: true, createdAt: Date.now() },
-      ],
-    }));
-  }, []);
+  const addPerson = useCallback(
+    (name: string, role: SlotRole, singleCover: boolean = false) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      setState((s) => ({
+        ...s,
+        people: [
+          ...s.people,
+          {
+            id: uid(),
+            name: trimmed,
+            role,
+            active: true,
+            singleCover,
+            // New people enter the rotation balanced from today, never "owed".
+            activeSince: todayISO(),
+            createdAt: Date.now(),
+          },
+        ],
+      }));
+    },
+    [],
+  );
   const setPersonActive = useCallback((id: string, active: boolean) => {
     setState((s) => ({
       ...s,
-      people: s.people.map((p) => (p.id === id ? { ...p, active } : p)),
+      people: s.people.map((p) => {
+        if (p.id !== id) return p;
+        // When someone returns from being away, restamp activeSince so they
+        // rejoin balanced — never forced to catch up to the others' totals.
+        if (active && !p.active) {
+          return { ...p, active, activeSince: todayISO() };
+        }
+        return { ...p, active };
+      }),
     }));
   }, []);
   const deletePerson = useCallback((id: string) => {
@@ -243,37 +264,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [state.assignments],
   );
 
-  const upsert = useCallback(
-    (
-      list: Assignment[],
-      date: string,
-      crew: CrewKind,
-      role: SlotRole,
-      personId: string | null,
-    ): Assignment[] => {
-      let rest = list.filter(
-        (a) => !(a.date === date && a.crew === crew && a.role === role),
-      );
-      if (!personId) return rest;
-      // One person can hold only one slot per day: eject the incoming person
-      // from any OTHER slot that day so an assignment can never double-book
-      // them (e.g. duty + standby, or across a written weekend block).
-      rest = rest.filter((a) => !(a.date === date && a.personId === personId));
-      const prev = list.find(
-        (a) => a.date === date && a.crew === crew && a.role === role,
-      );
-      rest.push({
-        id: prev?.id ?? uid(),
-        date,
-        crew,
-        role,
-        personId,
-        activated: crew === "standby" ? (prev?.activated ?? false) : undefined,
-      });
-      return rest;
-    },
-    [],
-  );
+  const upsert = useCallback(upsertAssignment, []);
 
   const setAssignment = useCallback(
     (date: string, crew: CrewKind, role: SlotRole, personId: string | null) => {
@@ -373,99 +364,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       for (let w = 0; w < weeks; w++) {
         dates.push(...weekDates(addDays(weekStart, w * 7)));
       }
-      const dateSet = new Set(dates);
-      const splitSet = new Set(s.splitWeekends);
-      const crews: CrewKind[] = ["duty", "standby"];
-      const roles: SlotRole[] = ["captain", "copilot"];
-      let working = [...s.assignments];
-
-      for (const date of dates) {
-        // A weekend day is a "block" (one crew covers the whole weekend) unless
-        // its weekend has been switched to split mode.
-        const block =
-          isWeekend(date) && !splitSet.has(weekendDates(date)[0]);
-        // Block weekends are filled once, at the first weekend day in range.
-        const targetDates = block
-          ? weekendDates(date).filter((d) => dateSet.has(d))
-          : [date];
-        if (block && date !== targetDates[0]) continue;
-
-        for (const crew of crews) {
-          for (const role of roles) {
-            const emptyDays = targetDates.filter(
-              (d) =>
-                !working.find(
-                  (a) => a.date === d && a.crew === crew && a.role === role,
-                ),
-            );
-            if (emptyDays.length === 0) continue;
-
-            // Keep a block weekend consistent: reuse whoever already holds this
-            // slot on ANY day of the block (preferring the reference/Thursday),
-            // so a single pre-filled day propagates across the block instead of
-            // the engine ignoring it and picking a different person. Use the
-            // slot's own date as the fairness reference so assignments already
-            // planned earlier in this run (on future dates) are counted in the
-            // window; using today would exclude future picks and defeat
-            // rebalancing.
-            const ref = targetDates[0];
-            const existing =
-              working.find(
-                (a) => a.date === ref && a.crew === crew && a.role === role,
-              ) ??
-              working.find(
-                (a) =>
-                  targetDates.includes(a.date) &&
-                  a.crew === crew &&
-                  a.role === role,
-              );
-            let personId = existing?.personId ?? null;
-            if (!personId) {
-              const cands = recommendForSlot(
-                s.people,
-                working,
-                s.specials,
-                s.settings,
-                role,
-                ref,
-                ref,
-              );
-              // The chosen person is written to every empty day of the block,
-              // so they must be free on ALL of them (not just the reference
-              // day) — otherwise they would be double-booked on a day where
-              // they already hold another slot.
-              personId =
-                cands.find(
-                  (c) =>
-                    c.eligible &&
-                    emptyDays.every(
-                      (d) =>
-                        !working.find(
-                          (a) => a.date === d && a.personId === c.person.id,
-                        ),
-                    ),
-                )?.person.id ?? null;
-            }
-            if (!personId) continue;
-
-            for (const d of emptyDays) {
-              // Never double-book: skip any day where the chosen occupant is
-              // already assigned to a different slot.
-              if (working.find((a) => a.date === d && a.personId === personId)) {
-                continue;
-              }
-              working.push({
-                id: uid(),
-                date: d,
-                crew,
-                role,
-                personId,
-                activated: crew === "standby" ? false : undefined,
-              });
-            }
-          }
-        }
-      }
+      const working = autoFill(
+        {
+          people: s.people,
+          assignments: s.assignments,
+          specials: s.specials,
+          settings: s.settings,
+          splitWeekends: s.splitWeekends,
+        },
+        dates,
+      );
       return { ...s, assignments: working };
     });
   }, []);
@@ -673,16 +581,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const totals = useCallback(
-    (windowDays: number, role: SlotRole) =>
+    (startDate: string, endDate: string, role: SlotRole) =>
       computeTotals(
         state.people,
         state.assignments,
         state.specials,
         state.locations,
         state.settings,
-        windowDays,
+        startDate,
+        endDate,
         role,
-        todayISO(),
       ),
     [
       state.people,

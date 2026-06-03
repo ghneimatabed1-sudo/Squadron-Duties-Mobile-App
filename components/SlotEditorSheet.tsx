@@ -116,7 +116,9 @@ export function SlotEditorSheet({
   const t = app.t;
   const title =
     `${t(target.role)} · ${target.crew === "duty" ? t("duty") : t("standby")}`;
-  const firstEligibleId = candidates.find((c) => c.eligible)?.person.id;
+  const firstEligibleId = candidates.find(
+    (c) => c.eligible && !c.singleCover,
+  )?.person.id;
   const pendingCand = candidates.find((c) => c.person.id === pendingId);
 
   return (
@@ -277,13 +279,20 @@ export function SlotEditorSheet({
                     {c.person.id === firstEligibleId && !isCurrent ? (
                       <Pill label={t("recommended")} tone="primary" />
                     ) : null}
+                    {c.singleCover ? (
+                      <Pill label={t("type_single_cover")} tone="accent" />
+                    ) : null}
                   </View>
-                  {c.eligible ? (
-                    <Pill label={bp.label} tone={bp.tone} />
-                  ) : (
+                  {!c.eligible ? (
                     <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground }}>
                       {t(c.reasonKey ?? "not_eligible")}
                     </Text>
+                  ) : c.singleCover ? (
+                    <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground }}>
+                      {t("does_not_count")}
+                    </Text>
+                  ) : (
+                    <Pill label={bp.label} tone={bp.tone} />
                   )}
                 </View>
                 {isCurrent ? (

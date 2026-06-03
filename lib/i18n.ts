@@ -104,6 +104,11 @@ const en: Dict = {
   add_person: "Add person",
   person_name: "Name",
   name_placeholder: "Enter name",
+  person_type: "Type",
+  type_normal: "Normal",
+  type_single_cover: "Single cover",
+  single_cover_desc:
+    "Left out of auto-fill and fairness. You assign them by hand for one-off days (e.g. a commander taking a day).",
   in_rotation: "In rotation",
   out_of_rotation: "Out of rotation",
   empty_roster: "No people yet",
@@ -120,8 +125,16 @@ const en: Dict = {
   locations: "Location",
   weighted: "Weighted",
   no_people: "Add people in the Roster tab to see tracking.",
+  from: "From",
+  to: "To",
+  last_14: "14 days",
+  this_month: "This month",
+  last_month: "Last month",
+  this_and_last: "This + last",
   tracking_hint:
     "All numbers are recomputed from the full saved history — no running tallies drift over time.",
+  tracking_range_hint:
+    "Counts are for the dates you pick. Your full history is always kept — choose any range to review it.",
 
   special_events: "Special events",
   location_duty: "Location duty",
@@ -297,6 +310,11 @@ const ar: Dict = {
   add_person: "إضافة شخص",
   person_name: "الاسم",
   name_placeholder: "أدخل الاسم",
+  person_type: "النوع",
+  type_normal: "عادي",
+  type_single_cover: "تغطية فردية",
+  single_cover_desc:
+    "مستثنى من التعبئة التلقائية والعدالة. تعيّنه يدوياً لأيام مفردة (مثل قائد يتولى يوماً).",
   in_rotation: "ضمن التناوب",
   out_of_rotation: "خارج التناوب",
   empty_roster: "لا يوجد أفراد بعد",
@@ -313,8 +331,16 @@ const ar: Dict = {
   locations: "الموقع",
   weighted: "الموزون",
   no_people: "أضف أفراداً في تبويب الأفراد لعرض المتابعة.",
+  from: "من",
+  to: "إلى",
+  last_14: "١٤ يوماً",
+  this_month: "هذا الشهر",
+  last_month: "الشهر الماضي",
+  this_and_last: "هذا + الماضي",
   tracking_hint:
     "تُحتسب كل الأرقام من كامل السجل المحفوظ — لا توجد عدّادات جارية تنحرف مع الوقت.",
+  tracking_range_hint:
+    "الأرقام محسوبة للتواريخ التي تختارها. سجلك الكامل محفوظ دائماً — اختر أي فترة لمراجعتها.",
 
   special_events: "المناسبات الخاصة",
   location_duty: "مناوبة الموقع",

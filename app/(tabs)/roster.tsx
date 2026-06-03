@@ -20,6 +20,7 @@ import {
   Header,
   IconButton,
   Loading,
+  Pill,
   Screen,
   SectionLabel,
   Segmented,
@@ -121,18 +122,33 @@ function PersonRow({ id }: { id: string }) {
           }}
         >
           <Feather
-            name={person.role === "captain" ? "award" : "user"}
+            name={
+              person.singleCover
+                ? "shield"
+                : person.role === "captain"
+                  ? "award"
+                  : "user"
+            }
             size={17}
             color={person.active ? colors.primary : colors.mutedForeground}
           />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, gap: 3 }}>
           <Text style={{ fontFamily: font.semibold, fontSize: 15.5, color: colors.foreground, textAlign }}>
             {person.name}
           </Text>
-          <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: person.active ? colors.success : colors.mutedForeground, textAlign }}>
-            {person.active ? t("in_rotation") : t("out_of_rotation")}
-          </Text>
+          {person.singleCover ? (
+            <View style={{ flexDirection: row, alignItems: "center", gap: 6 }}>
+              <Pill label={t("type_single_cover")} tone="accent" />
+              <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: person.active ? colors.success : colors.mutedForeground, textAlign }}>
+                {person.active ? t("in_rotation") : t("out_of_rotation")}
+              </Text>
+            </View>
+          ) : (
+            <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: person.active ? colors.success : colors.mutedForeground, textAlign }}>
+              {person.active ? t("in_rotation") : t("out_of_rotation")}
+            </Text>
+          )}
         </View>
         <Pressable
           onPress={() => {
@@ -170,10 +186,11 @@ function AddPersonModal({ onClose }: { onClose: () => void }) {
   const t = app.t;
   const [name, setName] = useState("");
   const [role, setRole] = useState<SlotRole>("captain");
+  const [kind, setKind] = useState<"normal" | "single">("normal");
 
   const submit = () => {
     if (!name.trim()) return;
-    app.addPerson(name, role);
+    app.addPerson(name, role, kind === "single");
     onClose();
   };
 
@@ -205,6 +222,22 @@ function AddPersonModal({ onClose }: { onClose: () => void }) {
                 { key: "copilot", label: t("copilot") },
               ]}
             />
+          </View>
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground }}>{t("person_type")}</Text>
+            <Segmented
+              value={kind}
+              onChange={setKind}
+              options={[
+                { key: "normal", label: t("type_normal") },
+                { key: "single", label: t("type_single_cover") },
+              ]}
+            />
+            {kind === "single" ? (
+              <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, lineHeight: 18, marginTop: 2 }}>
+                {t("single_cover_desc")}
+              </Text>
+            ) : null}
           </View>
           <Btn label={t("add")} icon="check" onPress={submit} disabled={!name.trim()} />
         </View>

@@ -20,25 +20,57 @@ import {
   useUI,
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
-import { dayOfWeek, isValidISO, parseISO, todayISO } from "@/lib/dates";
+import {
+  addDays,
+  addMonths,
+  dayOfWeek,
+  endOfMonth,
+  isValidISO,
+  parseISO,
+  startOfMonth,
+  todayISO,
+} from "@/lib/dates";
 import { PersonTotals } from "@/lib/fairness";
 import { CrewKind, SlotRole } from "@/lib/types";
-
-type Period = "14" | "21" | "30";
 
 export default function TrackingScreen() {
   const { colors, row } = useUI();
   const app = useApp();
-  const [period, setPeriod] = useState<Period>("14");
+  const today = todayISO();
+  const [from, setFrom] = useState(() => startOfMonth(today));
+  const [to, setTo] = useState(today);
   const [logging, setLogging] = useState(false);
 
   if (!app.ready) return <Loading />;
   const t = app.t;
-  const windowDays = Number(period);
 
+  const validRange = isValidISO(from) && isValidISO(to) && from <= to;
   const hasPeople = app.state.people.some((p) => p.active);
-  const captains = app.totals(windowDays, "captain");
-  const copilots = app.totals(windowDays, "copilot");
+  const captains = validRange ? app.totals(from, to, "captain") : [];
+  const copilots = validRange ? app.totals(from, to, "copilot") : [];
+
+  // Anchor on the first of the month so month math never rolls over on the
+  // 29th–31st (e.g. Mar 31 minus a month must give February, not March).
+  const firstThis = startOfMonth(today);
+  const firstPrev = addMonths(firstThis, -1);
+  const quick: { key: string; label: string; range: () => [string, string] }[] = [
+    { key: "d14", label: t("last_14"), range: () => [addDays(today, -13), today] },
+    { key: "this", label: t("this_month"), range: () => [firstThis, today] },
+    {
+      key: "last",
+      label: t("last_month"),
+      range: () => [firstPrev, endOfMonth(firstPrev)],
+    },
+    {
+      key: "both",
+      label: t("this_and_last"),
+      range: () => [firstPrev, today],
+    },
+  ];
+  const activeQuick = quick.find((q) => {
+    const [qf, qt] = q.range();
+    return qf === from && qt === to;
+  })?.key;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -60,15 +92,49 @@ export default function TrackingScreen() {
           <EmptyState icon="bar-chart-2" title={t("tab_tracking")} hint={t("no_people")} />
         ) : (
           <>
-            <Segmented
-              value={period}
-              onChange={setPeriod}
-              options={[
-                { key: "14", label: t("p_2w") },
-                { key: "21", label: t("p_3w") },
-                { key: "30", label: t("p_1m") },
-              ]}
-            />
+            <View style={{ flexDirection: row, gap: 8, flexWrap: "wrap" }}>
+              {quick.map((q) => {
+                const on = activeQuick === q.key;
+                return (
+                  <Pressable
+                    key={q.key}
+                    onPress={() => {
+                      tap();
+                      const [qf, qt] = q.range();
+                      setFrom(qf);
+                      setTo(qt);
+                    }}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      backgroundColor: on ? colors.primary : colors.card,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: on ? colors.primary : colors.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: font.semibold,
+                        fontSize: 13,
+                        color: on ? colors.primaryForeground : colors.foreground,
+                      }}
+                    >
+                      {q.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={{ flexDirection: row, gap: 12, marginTop: 12 }}>
+              <View style={{ flex: 1 }}>
+                <DateField label={t("from")} value={from} onChange={setFrom} formatDate={(iso) => fmtDate(app, iso)} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <DateField label={t("to")} value={to} onChange={setTo} formatDate={(iso) => fmtDate(app, iso)} />
+              </View>
+            </View>
 
             <View style={{ height: 16 }} />
             <SectionLabel text={t("captains")} />
@@ -97,7 +163,7 @@ export default function TrackingScreen() {
                   lineHeight: 18,
                 }}
               >
-                {t("tracking_hint")}
+                {t("tracking_range_hint")}
               </Text>
             </View>
           </>

@@ -1,4 +1,4 @@
-import { inWindow, isWeekend } from "./dates";
+import { addDays, diffDays, inWindow, isWeekend } from "./dates";
 import {
   Assignment,
   LocationAssignment,
@@ -41,16 +41,35 @@ export function computeLoads(
   settings: Settings,
   role: SlotRole,
   refDate: string,
+  /**
+   * Give newcomers/returners a fair, balanced start (default true). When on, a
+   * person whose `activeSince` falls inside the window is credited phantom
+   * duties at the group's average rate for the days before they were available,
+   * so they enter the rotation balanced instead of "most owed". Turn off for
+   * factual reporting where real counts matter (see computeTotals).
+   */
+  neutralizeNewcomers = true,
 ): Map<string, Load> {
   const map = new Map<string, Load>();
+  // activeSince per pool member: duties before this date are NOT counted as real
+  // load (the person had joined/returned later), keeping load consistent with
+  // the phantom credit applied below — a returner rejoins balanced, not "ahead".
+  const joinById = new Map<string, string | undefined>();
   for (const p of people) {
-    if (p.role === role && p.active) map.set(p.id, emptyLoad(p.id));
+    // Single-cover people are outside the rotation: their duties never count
+    // toward fairness, so they are excluded from the load pool entirely.
+    if (p.role === role && p.active && !p.singleCover) {
+      map.set(p.id, emptyLoad(p.id));
+      joinById.set(p.id, p.activeSince);
+    }
   }
 
   for (const a of assignments) {
     if (a.role !== role) continue;
     const l = map.get(a.personId);
     if (!l) continue;
+    const since = joinById.get(a.personId);
+    if (since && a.date < since) continue; // before they joined/returned
     const within = inWindow(a.date, refDate, settings.windowDays);
     if (a.crew === "duty") {
       if (within) {
@@ -73,9 +92,53 @@ export function computeLoads(
     if (s.role !== role) continue;
     const l = map.get(s.personId);
     if (!l) continue;
+    const since = joinById.get(s.personId);
+    if (since && s.date < since) continue; // before they joined/returned
     if (inWindow(s.date, refDate, settings.windowDays)) {
       l.weighted += settings.specialWeight;
       l.specials += 1;
+    }
+  }
+
+  if (neutralizeNewcomers) {
+    // First day the window covers (inclusive). Anyone whose activeSince is on or
+    // before this is "established" and gets no phantom credit.
+    const windowStart = addDays(refDate, -(settings.windowDays - 1));
+
+    // Average weighted load of established people = the group's "fair" pace.
+    let estSum = 0;
+    let estCount = 0;
+    const availableDays = new Map<string, number>();
+    for (const p of people) {
+      if (!map.has(p.id)) continue;
+      let avail = settings.windowDays;
+      if (p.activeSince && p.activeSince > windowStart) {
+        // Joined/returned partway through (or after) the window.
+        avail = Math.max(
+          0,
+          Math.min(settings.windowDays, diffDays(refDate, p.activeSince) + 1),
+        );
+      }
+      availableDays.set(p.id, avail);
+      if (avail >= settings.windowDays) {
+        estSum += map.get(p.id)!.weighted;
+        estCount += 1;
+      }
+    }
+
+    const ratePerDay =
+      estCount > 0 ? estSum / estCount / settings.windowDays : 0;
+    if (ratePerDay > 0) {
+      for (const p of people) {
+        const l = map.get(p.id);
+        if (!l) continue;
+        const avail = availableDays.get(p.id) ?? settings.windowDays;
+        if (avail < settings.windowDays) {
+          // Credit the unavailable days at the group rate so the newcomer's
+          // effective load sits at the fair share — balanced, not "owed".
+          l.weighted += ratePerDay * (settings.windowDays - avail);
+        }
+      }
     }
   }
 
@@ -99,6 +162,8 @@ export interface Candidate {
   eligible: boolean;
   reasonKey?: "reason_inactive" | "reason_double_booked";
   eventCount?: number;
+  /** True for single-cover people: selectable manually, but never auto-filled. */
+  singleCover?: boolean;
 }
 
 /**
@@ -148,11 +213,15 @@ export function recommendForSlot(
         lastDutyDate: l?.lastDutyDate ?? null,
         eligible,
         reasonKey,
+        singleCover: p.singleCover === true,
       };
     });
 
   list.sort((a, b) => {
     if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    // Normal pilots rank above single-cover people, so auto-fill and the
+    // "recommended" hint always prefer the regular rotation.
+    if (!!a.singleCover !== !!b.singleCover) return a.singleCover ? 1 : -1;
     if (a.load !== b.load) return a.load - b.load;
     const la = a.lastDutyDate ?? "0";
     const lb = b.lastDutyDate ?? "0";
@@ -210,11 +279,14 @@ export function recommendForSpecial(
           ? undefined
           : ("reason_inactive" as Candidate["reasonKey"]),
         eventCount: counts.get(p.id) ?? 0,
+        singleCover: p.singleCover === true,
       };
     });
 
   list.sort((a, b) => {
     if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
+    // Keep single-cover people below the normal rotation here too.
+    if (!!a.singleCover !== !!b.singleCover) return a.singleCover ? 1 : -1;
     const ca = a.eventCount ?? 0;
     const cb = b.eventCount ?? 0;
     if (ca !== cb) return ca - cb;
@@ -252,7 +324,12 @@ export function recommendForLocation(
   }
 
   const list: LocationCandidate[] = people
-    .filter((p) => p.active && !(excludedIds && excludedIds.has(p.id)))
+    .filter(
+      (p) =>
+        p.active &&
+        !p.singleCover &&
+        !(excludedIds && excludedIds.has(p.id)),
+    )
     .map((p) => ({
       person: p,
       count: counts.get(p.id) ?? 0,
@@ -357,38 +434,65 @@ export interface PersonTotals {
   balance: number;
 }
 
+/**
+ * Factual per-person totals over an inclusive [startDate, endDate] range.
+ * Counts are real (no newcomer neutralizing) — this is a history report, so the
+ * numbers reflect exactly what each person did in the period the user picked.
+ */
 export function computeTotals(
   people: Person[],
   assignments: Assignment[],
   specials: SpecialAssignment[],
   locations: LocationAssignment[],
   settings: Settings,
-  windowDays: number,
+  startDate: string,
+  endDate: string,
   role: SlotRole,
-  refDate: string,
 ): PersonTotals[] {
-  const winSettings: Settings = { ...settings, windowDays };
-  const loads = computeLoads(
-    people,
-    assignments,
-    specials,
-    winSettings,
-    role,
-    refDate,
-  );
-  const share = fairShare(loads);
+  const inRange = (d: string) => d >= startDate && d <= endDate;
+  const map = new Map<string, Load>();
+  for (const p of people) {
+    if (p.role === role && p.active && !p.singleCover) {
+      map.set(p.id, emptyLoad(p.id));
+    }
+  }
+
+  for (const a of assignments) {
+    if (a.role !== role) continue;
+    const l = map.get(a.personId);
+    if (!l || !inRange(a.date)) continue;
+    if (a.crew === "duty") {
+      const wknd = isWeekend(a.date);
+      l.weighted += wknd ? settings.weekendWeight : settings.dutyWeight;
+      l.dutyDays += 1;
+      if (wknd) l.weekendDuty += 1;
+    } else if (a.crew === "standby" && a.activated) {
+      l.weighted += settings.standbyWeight;
+      l.standbyActivated += 1;
+    }
+  }
+
+  for (const s of specials) {
+    if (s.role !== role) continue;
+    const l = map.get(s.personId);
+    if (!l || !inRange(s.date)) continue;
+    l.weighted += settings.specialWeight;
+    l.specials += 1;
+  }
+
+  const share = fairShare(map);
 
   const locCount = new Map<string, number>();
   for (const loc of locations) {
-    if (inWindow(loc.startDate, refDate, windowDays)) {
+    if (inRange(loc.startDate)) {
       locCount.set(loc.personId, (locCount.get(loc.personId) ?? 0) + 1);
     }
   }
 
   return people
-    .filter((p) => p.role === role && p.active)
+    .filter((p) => p.role === role && p.active && !p.singleCover)
     .map((p) => {
-      const l = loads.get(p.id);
+      const l = map.get(p.id);
       return {
         person: p,
         duty: l?.dutyDays ?? 0,

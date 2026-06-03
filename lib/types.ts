@@ -7,6 +7,20 @@ export interface Person {
   name: string;
   role: SlotRole;
   active: boolean;
+  /**
+   * A "single cover" person (e.g. a commander who personally takes one specific
+   * day) is NEVER picked by auto-fill and never counts toward fairness. They can
+   * still be assigned manually to any slot. Normal pilots (false/undefined) are
+   * the regular weekday/weekend rotation pool.
+   */
+  singleCover?: boolean;
+  /**
+   * ISO date the person joined or last returned from being away. Used to give
+   * a newcomer/returner a fair, balanced start: their duties are measured only
+   * from this date, so they are never treated as "owed" a pile of catch-up
+   * duties just because they have no recent history. Missing = long-established.
+   */
+  activeSince?: string;
   createdAt: number;
 }
 

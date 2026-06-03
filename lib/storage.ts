@@ -63,6 +63,8 @@ function parsePerson(v: unknown): Person | null {
     name: v.name,
     role: v.role,
     active: typeof v.active === "boolean" ? v.active : true,
+    singleCover: v.singleCover === true,
+    activeSince: isValidISO(v.activeSince) ? v.activeSince : undefined,
     createdAt: isNum(v.createdAt) ? v.createdAt : Date.now(),
   };
 }
