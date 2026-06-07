@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { PlanCrewSheet } from "@/components/PlanCrewSheet";
 import { SlotEditorSheet, SlotTarget } from "@/components/SlotEditorSheet";
@@ -28,6 +28,7 @@ import {
   todayISO,
   weekDates,
 } from "@/lib/dates";
+import { safeFileBase } from "@/lib/filenames";
 import { exportRosterSheet } from "@/lib/io";
 import { buildRosterHtml, RosterDay, RosterLocation } from "@/lib/rosterHtml";
 import { CrewKind, MAX_EXTRA_CREWS, SlotRole } from "@/lib/types";
@@ -39,6 +40,7 @@ export default function ScheduleScreen() {
   const [target, setTarget] = useState<SlotTarget | null>(null);
   const [soloDate, setSoloDate] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [balanceOpen, setBalanceOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [planEventOpen, setPlanEventOpen] = useState(false);
   const [planLocationOpen, setPlanLocationOpen] = useState(false);
@@ -62,7 +64,21 @@ export default function ScheduleScreen() {
   const shareRoster = async (weeks: number) => {
     setShareOpen(false);
     const html = buildSheetHtml(app, weekStart, weeks);
-    await exportRosterSheet(html, "squadron-roster.pdf");
+    const exportDates: string[] = [];
+    for (let w = 0; w < weeks; w++) {
+      exportDates.push(...weekDates(addDays(weekStart, w * 7)));
+    }
+    const first = parseISO(exportDates[0]);
+    const last = parseISO(exportDates[exportDates.length - 1]);
+    const fmtFile = (d: Date) => `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}`;
+    // Name the file after the squadron (same title shown inside the sheet) plus
+    // the date range, so it's identifiable in a file manager / share sheet
+    // without opening it. Strip characters that are invalid in filenames.
+    const safeTitle = safeFileBase(
+      app.settings.squadronName.trim() || t("roster_title"),
+    );
+    const fileName = `${safeTitle} ${fmtFile(first)} to ${fmtFile(last)}.pdf`;
+    await exportRosterSheet(html, fileName);
   };
 
   return (
@@ -121,6 +137,17 @@ export default function ScheduleScreen() {
                 variant="secondary"
                 size="sm"
                 onPress={() => app.generateWeek(weekStart)}
+                style={{ flex: 1 }}
+              />
+              <Btn
+                label={t("balance")}
+                icon="sliders"
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  tap();
+                  setBalanceOpen(true);
+                }}
                 style={{ flex: 1 }}
               />
               <Btn
@@ -248,6 +275,12 @@ export default function ScheduleScreen() {
         kind="location"
         visible={planLocationOpen}
         onClose={() => setPlanLocationOpen(false)}
+      />
+      <BalanceSheet
+        visible={balanceOpen}
+        dates={dates}
+        weekLabel={rangeLabel}
+        onClose={() => setBalanceOpen(false)}
       />
     </View>
   );
@@ -442,6 +475,116 @@ function PlanAheadSheet({
               onPress={() => onPick(n)}
             />
           ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function BalanceSheet({
+  visible,
+  dates,
+  weekLabel,
+  onClose,
+}: {
+  visible: boolean;
+  dates: string[];
+  weekLabel: string;
+  onClose: () => void;
+}) {
+  const { colors, row, textAlign } = useUI();
+  const app = useApp();
+  const t = app.t;
+  const changes = useMemo(
+    () => (visible ? app.rebalancePreview(dates) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visible, dates, app.state],
+  );
+  const nameOf = (id: string | null) => (id ? app.personName(id) : "—");
+  const dayLabel = (iso: string) =>
+    `${app.weekday(dayOfWeek(iso))} · ${formatShort(iso)}`;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: colors.background,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            padding: 20,
+            paddingBottom: 34,
+            gap: 14,
+          }}
+        >
+          <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={{ fontFamily: font.bold, fontSize: 18, color: colors.foreground, textAlign }}>
+              {t("balance_title")}
+            </Text>
+            <IconButton icon="x" size={18} onPress={onClose} bg="transparent" color={colors.mutedForeground} />
+          </View>
+          <Text style={{ fontFamily: font.regular, fontSize: 13.5, color: colors.mutedForeground, textAlign, lineHeight: 19 }}>
+            {changes.length === 0
+              ? t("already_balanced")
+              : `${t("balance_hint")} (${weekLabel})`}
+          </Text>
+
+          {changes.length > 0 ? (
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              <View style={{ gap: 8 }}>
+                {changes.map((c, i) => (
+                  <View
+                    key={`${c.date}-${c.crew}-${c.role}-${c.crewIndex}-${i}`}
+                    style={{
+                      flexDirection: row,
+                      alignItems: "center",
+                      gap: 10,
+                      padding: 11,
+                      borderRadius: colors.radius,
+                      backgroundColor: colors.card,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={{ fontFamily: font.semibold, fontSize: 13.5, color: colors.foreground, textAlign }}>
+                        {dayLabel(c.date)}
+                      </Text>
+                      <Text style={{ fontFamily: font.medium, fontSize: 12, color: colors.mutedForeground, textAlign }}>
+                        {t(c.crew)} · {t(c.role)}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: row, alignItems: "center", gap: 6, flexShrink: 1 }}>
+                      <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: colors.mutedForeground }}>
+                        {nameOf(c.oldId)}
+                      </Text>
+                      <Feather name="arrow-right" size={13} color={colors.mutedForeground} />
+                      <Text style={{ fontFamily: font.semibold, fontSize: 12.5, color: colors.primary }}>
+                        {nameOf(c.newId)}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          ) : null}
+
+          {changes.length > 0 ? (
+            <Btn
+              label={`${t("apply")} (${changes.length})`}
+              icon="check"
+              variant="primary"
+              onPress={() => {
+                app.applyRebalance(dates);
+                onClose();
+              }}
+            />
+          ) : null}
+          <Btn label={t("close")} variant="secondary" onPress={onClose} />
         </Pressable>
       </Pressable>
     </Modal>

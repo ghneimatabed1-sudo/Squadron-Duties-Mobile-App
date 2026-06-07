@@ -23,7 +23,7 @@ import {
   SwapPreview,
 } from "@/lib/fairness";
 import { makeT, weekdayNames, weekdayShort } from "@/lib/i18n";
-import { autoFill, upsertAssignment } from "@/lib/schedule";
+import { autoFill, rebalanceAssignments, upsertAssignment } from "@/lib/schedule";
 import { loadState, normalize, saveState } from "@/lib/storage";
 import {
   AppState,
@@ -43,6 +43,15 @@ import {
   uid,
 } from "@/lib/types";
 
+export interface RebalanceChange {
+  date: string;
+  crew: CrewKind;
+  role: SlotRole;
+  crewIndex: number;
+  oldId: string | null;
+  newId: string | null;
+}
+
 interface AppContextValue {
   ready: boolean;
   state: AppState;
@@ -61,6 +70,7 @@ interface AppContextValue {
   // people
   addPerson: (name: string, role: SlotRole, singleCover?: boolean) => void;
   setPersonActive: (id: string, active: boolean) => void;
+  setPersonSingleCover: (id: string, singleCover: boolean) => void;
   deletePerson: (id: string) => void;
 
   // schedule
@@ -86,6 +96,8 @@ interface AppContextValue {
   toggleActivated: (date: string, role: SlotRole) => void;
   clearDay: (date: string) => void;
   generateWeek: (weekStart: string, weeks?: number) => void;
+  rebalancePreview: (dates: string[]) => RebalanceChange[];
+  applyRebalance: (dates: string[]) => void;
 
   // occasional extra duty crews (2 captains + 2 co-pilots on a day, etc.)
   extraCrewCount: (date: string) => number;
@@ -271,6 +283,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }),
     }));
   }, []);
+  const setPersonSingleCover = useCallback(
+    (id: string, singleCover: boolean) => {
+      setState((s) => ({
+        ...s,
+        people: s.people.map((p) => {
+          if (p.id !== id) return p;
+          // Moving someone INTO the rotation (single cover -> off): restamp
+          // activeSince so they join balanced and aren't forced to catch up to
+          // everyone else's accumulated totals. Moving them OUT just flips it.
+          if (p.singleCover && !singleCover) {
+            return { ...p, singleCover, activeSince: todayISO() };
+          }
+          return { ...p, singleCover };
+        }),
+      }));
+    },
+    [],
+  );
   const deletePerson = useCallback((id: string) => {
     setState((s) => ({
       ...s,
@@ -461,6 +491,80 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
       return { ...s, assignments: working };
     });
+  }, []);
+
+  // Diff the current schedule for `dates` against a fully rebalanced version.
+  // Returns one entry per slot whose occupant would change, so the UI can show
+  // a preview before anything is written.
+  const rebalancePreview = useCallback(
+    (dates: string[]): RebalanceChange[] => {
+      const dateSet = new Set(dates);
+      const next = rebalanceAssignments(
+        {
+          people: state.people,
+          assignments: state.assignments,
+          specials: state.specials,
+          locations: state.locations,
+          settings: state.settings,
+          splitWeekends: state.splitWeekends,
+          extraCrews: state.extraCrews,
+        },
+        dates,
+      );
+      const slotKey = (a: Assignment) =>
+        `${a.date}|${a.crew}|${a.role}|${a.crewIndex ?? 0}`;
+      const before = new Map<string, Assignment>();
+      for (const a of state.assignments)
+        if (dateSet.has(a.date)) before.set(slotKey(a), a);
+      const after = new Map<string, Assignment>();
+      for (const a of next) if (dateSet.has(a.date)) after.set(slotKey(a), a);
+
+      const changes: RebalanceChange[] = [];
+      const keys = new Set([...before.keys(), ...after.keys()]);
+      for (const k of keys) {
+        const b = before.get(k);
+        const a = after.get(k);
+        const oldId = b?.personId ?? null;
+        const newId = a?.personId ?? null;
+        if (oldId === newId) continue;
+        const ref = a ?? b!;
+        changes.push({
+          date: ref.date,
+          crew: ref.crew,
+          role: ref.role,
+          crewIndex: ref.crewIndex ?? 0,
+          oldId,
+          newId,
+        });
+      }
+      changes.sort(
+        (x, y) =>
+          x.date.localeCompare(y.date) ||
+          x.crew.localeCompare(y.crew) ||
+          x.role.localeCompare(y.role) ||
+          x.crewIndex - y.crewIndex,
+      );
+      return changes;
+    },
+    [state],
+  );
+
+  const applyRebalance = useCallback((dates: string[]) => {
+    setState((s) => ({
+      ...s,
+      assignments: rebalanceAssignments(
+        {
+          people: s.people,
+          assignments: s.assignments,
+          specials: s.specials,
+          locations: s.locations,
+          settings: s.settings,
+          splitWeekends: s.splitWeekends,
+          extraCrews: s.extraCrews,
+        },
+        dates,
+      ),
+    }));
   }, []);
 
   // ---- events ----
@@ -816,6 +920,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     resetWeights,
     addPerson,
     setPersonActive,
+    setPersonSingleCover,
     deletePerson,
     getAssignment,
     setAssignment,
@@ -823,6 +928,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleActivated,
     clearDay,
     generateWeek,
+    rebalancePreview,
+    applyRebalance,
     extraCrewCount,
     addCrew,
     removeCrew,

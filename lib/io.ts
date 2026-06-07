@@ -6,14 +6,23 @@ import { Platform } from "react-native";
 
 const FILE_NAME = "squadron-duty-backup.json";
 
-/** Export the given JSON string to a shareable file (or download on web). */
-export async function exportToFile(json: string): Promise<void> {
+/**
+ * Export the given JSON string to a shareable file (or download on web).
+ *
+ * @param json     The serialized app state.
+ * @param fileName Desired file name (e.g. "NO.8 SQDN backup 7-6-2026.json").
+ *                 Falls back to a generic name when omitted.
+ */
+export async function exportToFile(
+  json: string,
+  fileName: string = FILE_NAME,
+): Promise<void> {
   if (Platform.OS === "web") {
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = FILE_NAME;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -21,7 +30,7 @@ export async function exportToFile(json: string): Promise<void> {
     return;
   }
 
-  const uri = (FileSystem.documentDirectory ?? "") + FILE_NAME;
+  const uri = (FileSystem.documentDirectory ?? "") + fileName;
   await FileSystem.writeAsStringAsync(uri, json);
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {

@@ -190,3 +190,26 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
   }
   return working;
 }
+
+/**
+ * Re-balance an entire date range from scratch. Unlike autoFill (which only
+ * fills empty slots and never touches manual picks), this clears every duty and
+ * standby assignment inside `dates` — including any manual switches — and then
+ * re-fills them with the fairness engine. Specials, locations and solos are left
+ * untouched (autoFill already routes the rotation around them).
+ *
+ * This is what powers the one-tap "Balance" button: the user can shuffle people
+ * around by hand, then ask the app to redistribute the whole week fairly.
+ *
+ * Pure: returns a new assignments array and never mutates the input.
+ */
+export function rebalanceAssignments(
+  input: AutoFillInput,
+  dates: string[],
+): Assignment[] {
+  const dateSet = new Set(dates);
+  // Drop every duty/standby slot (any crew index) that falls inside the range,
+  // keeping everything outside it intact, then let autoFill rebuild the range.
+  const cleared = input.assignments.filter((a) => !dateSet.has(a.date));
+  return autoFill({ ...input, assignments: cleared }, dates);
+}

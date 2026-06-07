@@ -29,7 +29,7 @@ import {
   useUI,
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
-import { dayOfWeek, isValidISO, parseISO, todayISO } from "@/lib/dates";
+import { dayOfWeek, eachDay, isValidISO, parseISO, todayISO } from "@/lib/dates";
 import { LocationAssignment } from "@/lib/types";
 
 type Tab = "special" | "location";
@@ -129,7 +129,9 @@ function AddSpecialModal({ onClose }: { onClose: () => void }) {
 
   const [presetKey, setPresetKey] = useState("independence_day");
   const [customName, setCustomName] = useState("");
+  const [span, setSpan] = useState<"single" | "multi">("single");
   const [date, setDate] = useState(todayISO());
+  const [endDate, setEndDate] = useState(todayISO());
   const [captainId, setCaptainId] = useState<string | null>(null);
   const [copilotId, setCopilotId] = useState<string | null>(null);
 
@@ -148,12 +150,25 @@ function AddSpecialModal({ onClose }: { onClose: () => void }) {
       ? customName.trim()
       : t(PRESETS.find((p) => p.key === presetKey)!.labelKey);
 
-  const canSave = !!eventName && isValidISO(date) && (!!captainId || !!copilotId);
+  const days =
+    span === "multi" && isValidISO(date) && isValidISO(endDate) && endDate >= date
+      ? eachDay(date, endDate)
+      : [date];
+  const datesValid =
+    isValidISO(date) && (span === "single" || (isValidISO(endDate) && endDate >= date));
+  const canSave = !!eventName && datesValid && (!!captainId || !!copilotId);
 
   const submit = () => {
     if (!canSave) return;
-    if (captainId) app.addSpecial(eventKey, eventName, date, "captain", captainId);
-    if (copilotId) app.addSpecial(eventKey, eventName, date, "copilot", copilotId);
+    const records = days.flatMap((d) => [
+      ...(captainId
+        ? [{ eventKey, eventName, date: d, role: "captain" as const, personId: captainId }]
+        : []),
+      ...(copilotId
+        ? [{ eventKey, eventName, date: d, role: "copilot" as const, personId: copilotId }]
+        : []),
+    ]);
+    app.planSpecials(records);
     onClose();
   };
 
@@ -200,7 +215,35 @@ function AddSpecialModal({ onClose }: { onClose: () => void }) {
               <Field label={t("event_name")} value={customName} onChangeText={setCustomName} placeholder={t("event_name")} />
             ) : null}
 
-            <DateField label={t("date")} value={date} onChange={setDate} formatDate={(iso) => fmt(app, iso)} />
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground }}>{t("duration")}</Text>
+              <Segmented
+                value={span}
+                onChange={setSpan}
+                options={[
+                  { key: "single", label: t("single_day") },
+                  { key: "multi", label: t("multiple_days") },
+                ]}
+              />
+            </View>
+
+            {span === "single" ? (
+              <DateField label={t("date")} value={date} onChange={setDate} formatDate={(iso) => fmt(app, iso)} />
+            ) : (
+              <>
+                <DateField label={t("start_date")} value={date} onChange={setDate} formatDate={(iso) => fmt(app, iso)} />
+                <DateField label={t("end_date")} value={endDate} onChange={setEndDate} formatDate={(iso) => fmt(app, iso)} />
+                {isValidISO(date) && isValidISO(endDate) && endDate < date ? (
+                  <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: colors.destructive }}>
+                    {t("end_before_start")}
+                  </Text>
+                ) : (
+                  <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground }}>
+                    {days.length} {t("days_count")}
+                  </Text>
+                )}
+              </>
+            )}
 
             <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, lineHeight: 18 }}>
               {t("special_crew_hint")}

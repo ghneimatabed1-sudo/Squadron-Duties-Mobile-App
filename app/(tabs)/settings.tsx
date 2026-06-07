@@ -16,6 +16,7 @@ import {
   useUI,
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
+import { safeFileBase } from "@/lib/filenames";
 import { exportToFile, importFromFile } from "@/lib/io";
 
 export default function SettingsScreen() {
@@ -30,7 +31,16 @@ export default function SettingsScreen() {
   const doExport = async () => {
     try {
       setBusy(true);
-      await exportToFile(app.exportJson());
+      // Name the backup after the squadron + today's date so multiple backups
+      // stay distinct and the latest is easy to spot when restoring.
+      const safeTitle = safeFileBase(
+        s.squadronName.trim() || t("roster_title"),
+        "Squadron",
+      );
+      const d = new Date();
+      const stamp = `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}`;
+      const fileName = `${safeTitle} backup ${stamp}.json`;
+      await exportToFile(app.exportJson(), fileName);
     } finally {
       setBusy(false);
     }

@@ -149,6 +149,34 @@ function PersonRow({ id }: { id: string }) {
               {person.active ? t("in_rotation") : t("out_of_rotation")}
             </Text>
           )}
+          <Pressable
+            onPress={() => {
+              tap();
+              app.setPersonSingleCover(id, !person.singleCover);
+            }}
+            style={{
+              flexDirection: row,
+              alignItems: "center",
+              gap: 5,
+              alignSelf: "flex-start",
+              marginTop: 4,
+              paddingVertical: 4,
+              paddingHorizontal: 9,
+              borderRadius: 999,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.border,
+              backgroundColor: colors.muted,
+            }}
+          >
+            <Feather
+              name={person.singleCover ? "refresh-cw" : "shield"}
+              size={11}
+              color={colors.mutedForeground}
+            />
+            <Text style={{ fontFamily: font.medium, fontSize: 11.5, color: colors.mutedForeground }}>
+              {person.singleCover ? t("move_to_rotation") : t("make_single_cover")}
+            </Text>
+          </Pressable>
         </View>
         <Pressable
           onPress={() => {
