@@ -55,6 +55,9 @@ export default function TrackingScreen() {
   const firstPrev = addMonths(firstThis, -1);
   const quick: { key: string; label: string; range: () => [string, string] }[] = [
     { key: "d14", label: t("last_14"), range: () => [addDays(today, -13), today] },
+    // Planned duties on future days count for fairness the moment they are
+    // written — this range makes them visible without waiting for days to pass.
+    { key: "n14", label: t("next_14"), range: () => [today, addDays(today, 13)] },
     { key: "this", label: t("this_month"), range: () => [firstThis, today] },
     {
       key: "last",
