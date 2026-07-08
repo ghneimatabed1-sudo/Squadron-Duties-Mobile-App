@@ -6,6 +6,8 @@ export interface RosterDay {
   dutyCopilot: string;
   standbyCaptain: string;
   standbyCopilot: string;
+  /** Extra duty crews (crewIndex 1..n) added to this day, in order. */
+  extraDuty?: { captain: string; copilot: string }[];
   solo?: string;
   specials?: { name: string; person: string }[];
   /** Location duties active on this day: location name + the crew on it. */
@@ -29,6 +31,8 @@ export interface RosterSheetData {
     copilot: string;
     weekend: string;
     solo: string;
+    /** Label prefix for extra duty crews, e.g. "Crew" -> "Crew 2". */
+    crew: string;
     generatedOn: string;
     locationDuty: string;
   };
@@ -76,11 +80,18 @@ export function buildRosterHtml(data: RosterSheetData): string {
       const soloRow = d.solo
         ? `<div class="solo"><strong>${esc(d.solo)}</strong></div>`
         : "";
+      const extraCell = (pick: (c: { captain: string; copilot: string }) => string) =>
+        (d.extraDuty ?? [])
+          .map(
+            (c, i) =>
+              `<div class="extra"><span class="extra-label">${esc(L.crew)} ${i + 2}</span>${esc(pick(c))}</div>`,
+          )
+          .join("");
       return `
       <tr class="${d.isWeekend ? "weekend-row" : ""}">
         ${dayCell}
-        <td class="name">${esc(d.dutyCaptain)}</td>
-        <td class="name">${esc(d.dutyCopilot)}</td>
+        <td class="name">${esc(d.dutyCaptain)}${extraCell((c) => c.captain)}</td>
+        <td class="name">${esc(d.dutyCopilot)}${extraCell((c) => c.copilot)}</td>
         <td class="name standby">${esc(d.standbyCaptain)}</td>
         <td class="name standby">${esc(d.standbyCopilot)}${soloRow}</td>
       </tr>`;
@@ -130,6 +141,20 @@ export function buildRosterHtml(data: RosterSheetData): string {
   tr.weekend-row td { background: var(--shade); }
   td.day.weekend { background: var(--accent); }
   .solo { margin-top: 5px; font-size: 11px; color: var(--muted); }
+  td.name .extra {
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px dashed var(--line);
+    font-size: 13px;
+  }
+  td.name .extra .extra-label {
+    display: block;
+    font-size: 9.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    margin-bottom: 1px;
+  }
   td.day .special-tag {
     margin-top: 4px;
     font-size: 10.5px;

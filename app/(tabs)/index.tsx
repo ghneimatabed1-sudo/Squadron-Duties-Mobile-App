@@ -883,8 +883,9 @@ function buildSheetHtml(
     date: string,
     crew: CrewKind,
     role: SlotRole,
+    crewIndex = 0,
   ): string => {
-    const a = app.getAssignment(date, crew, role);
+    const a = app.getAssignment(date, crew, role, crewIndex);
     return a ? app.personName(a.personId) : "—";
   };
 
@@ -917,6 +918,26 @@ function buildSheetHtml(
       dutyCopilot: nameOf(date, "duty", "copilot"),
       standbyCaptain: nameOf(date, "standby", "captain"),
       standbyCopilot: nameOf(date, "standby", "copilot"),
+      extraDuty: (() => {
+        // Count declared extra crews, but also infer from any crewIndex>0
+        // assignments (e.g. restored from an older backup) so the export
+        // never silently drops a filled crew.
+        const declared = app.extraCrewCount(date);
+        const assigned = app.state.assignments.reduce(
+          (m, a) =>
+            a.date === date && a.crew === "duty"
+              ? Math.max(m, a.crewIndex ?? 0)
+              : m,
+          0,
+        );
+        const n = Math.max(declared, assigned);
+        return n > 0
+          ? Array.from({ length: n }, (_, i) => ({
+              captain: nameOf(date, "duty", "captain", i + 1),
+              copilot: nameOf(date, "duty", "copilot", i + 1),
+            }))
+          : undefined;
+      })(),
       solo: solo ? app.personName(solo.personId) : undefined,
       specials: specials.length ? specials : undefined,
       locations: dayLocations.length ? dayLocations : undefined,
@@ -976,6 +997,7 @@ function buildSheetHtml(
       copilot: t("copilot"),
       weekend: t("weekend"),
       solo: t("single_cover"),
+      crew: t("crew_label"),
       generatedOn: t("generated_on"),
       locationDuty: t("location_duty"),
     },

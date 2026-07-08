@@ -45,7 +45,16 @@ export function upsertAssignment(
     crew,
     role,
     personId,
-    activated: crew === "standby" ? (prev?.activated ?? false) : undefined,
+    // Activation ("standby got called in") belongs to the PERSON who lived
+    // that night, not the slot: keep it only when the same person is being
+    // re-written; a newly swapped-in person always starts un-activated so
+    // they never inherit duty credit they didn't earn.
+    activated:
+      crew === "standby"
+        ? prev?.personId === personId
+          ? (prev?.activated ?? false)
+          : false
+        : undefined,
     crewIndex: crewIndex > 0 ? crewIndex : undefined,
   });
   return rest;
