@@ -82,7 +82,7 @@ export function SlotEditorSheet({
     : undefined;
 
   const candidates = useMemo(
-    () => (target ? app.recommendSlot(target.date, target.role) : []),
+    () => (target ? app.recommendSlot(target.date, target.role, target.crew) : []),
     [target, app],
   );
 

@@ -183,8 +183,8 @@ function LogPastDutyModal({ onClose }: { onClose: () => void }) {
   const [personId, setPersonId] = useState<string | null>(null);
 
   const candidates = useMemo(
-    () => app.recommendSlot(date, role),
-    [app, date, role],
+    () => app.recommendSlot(date, role, crew),
+    [app, date, role, crew],
   );
   const canSave = !!personId && isValidISO(date);
 

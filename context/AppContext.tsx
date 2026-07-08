@@ -158,7 +158,7 @@ interface AppContextValue {
   ) => void;
 
   // derived helpers
-  recommendSlot: (date: string, role: SlotRole) => Candidate[];
+  recommendSlot: (date: string, role: SlotRole, crew?: CrewKind) => Candidate[];
   recommendSpecial: (eventKey: string, role: SlotRole) => Candidate[];
   recommendLocation: (excludedIds?: string[]) => LocationCandidate[];
   recommendLocationCrew: (
@@ -765,7 +765,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ---- derived ----
   const recommendSlot = useCallback(
-    (date: string, role: SlotRole) =>
+    (date: string, role: SlotRole, crew: CrewKind = "duty") =>
       recommendForSlot(
         state.people,
         state.assignments,
@@ -779,6 +779,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // multi-week auto-planning (today would exclude future picks from
         // the backward-looking window).
         date,
+        // Pass the crew kind so the ranking matches auto-fill exactly:
+        // duty slots rank category-aware (weekday vs weekend), standby
+        // ranks by plain weighted load. Omitting this made the manual
+        // picker's "Recommended" disagree with auto-fill on standby slots.
+        crew,
       ),
     [
       state.people,
