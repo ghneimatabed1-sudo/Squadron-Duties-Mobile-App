@@ -315,6 +315,21 @@ const en: Dict = {
   about_text:
     "Squadron Duty works fully offline. Every fairness number is recomputed from your complete saved history, so totals never drift over months or years.",
   reset_weights: "Reset weights to defaults",
+
+  tab_duties: "Duties",
+  h_3w: "3 weeks",
+  h_1m: "1 month",
+  h_2m: "2 months",
+  h_3m: "3 months",
+  duties_weekend_title: "Weekend duties",
+  duties_location_title: "Location duties",
+  duties_hint:
+    "A read-only forecast from the rotation queue — nothing here is saved. It updates automatically whenever the real schedule changes. Slots already written in the schedule show as Planned; the rest are Predicted.",
+  duties_loc_hint:
+    "The upcoming order for location duty: fewest stints first, then longest ago. #1 is next in line. Location duties have no fixed dates, so this is an order, not a calendar.",
+  duties_never: "Never",
+  planned: "Planned",
+  predicted: "Predicted",
 };
 
 const ar: Dict = {
@@ -626,6 +641,21 @@ const ar: Dict = {
   about_text:
     "يعمل تطبيق مناوبات السرب دون اتصال بالكامل. تُحتسب كل أرقام العدالة من كامل سجلك المحفوظ، فلا تنحرف الإجماليات عبر الأشهر أو السنين.",
   reset_weights: "إعادة الأوزان للافتراضي",
+
+  tab_duties: "المناوبات",
+  h_3w: "3 أسابيع",
+  h_1m: "شهر",
+  h_2m: "شهران",
+  h_3m: "3 أشهر",
+  duties_weekend_title: "مناوبات نهاية الأسبوع",
+  duties_location_title: "مناوبات المواقع",
+  duties_hint:
+    "توقعات للقراءة فقط من طابور المناوبة — لا يُحفظ أي شيء هنا. تتحدث تلقائيًا عند أي تغيير في الجدول الفعلي. الخانات المكتوبة فعلًا في الجدول تظهر «مخطط»، والباقي «متوقع».",
+  duties_loc_hint:
+    "ترتيب مناوبات المواقع القادمة: الأقل عددًا أولًا، ثم الأقدم. رقم 1 هو التالي في الدور. مناوبات المواقع بلا تواريخ ثابتة، لذا هذا ترتيب وليس تقويمًا.",
+  duties_never: "أبدًا",
+  planned: "مخطط",
+  predicted: "متوقع",
 };
 
 export const translations: Record<Language, Dict> = { en, ar };

@@ -21,6 +21,7 @@ const TABS: {
   { name: "availability", titleKey: "tab_availability", feather: "clipboard", sf: "checklist" },
   { name: "tracking", titleKey: "tab_tracking", feather: "bar-chart-2", sf: "chart.bar" },
   { name: "events", titleKey: "tab_events", feather: "star", sf: "star" },
+  { name: "duties", titleKey: "tab_duties", feather: "compass", sf: "location.north.circle" },
   { name: "settings", titleKey: "tab_settings", feather: "settings", sf: "gearshape" },
 ];
 
