@@ -121,6 +121,10 @@ export interface Settings {
    * rested is available.
    */
   restDays: number;
+  /** Rest gap after a SPECIAL EVENT duty (0–7). */
+  restDaysSpecial: number;
+  /** Rest gap after a LOCATION stint ends (0–7). */
+  restDaysLocation: number;
 }
 
 export interface AppState {
@@ -161,6 +165,8 @@ export const DEFAULT_SETTINGS: Settings = {
   language: "en",
   squadronName: "",
   restDays: 1,
+  restDaysSpecial: 1,
+  restDaysLocation: 1,
 };
 
 export const DEFAULT_STATE: AppState = {

@@ -31,10 +31,13 @@ import {
  *   - joining / returning to the squadron (activeSince) -> back of every
  *     queue as of that day, so newcomers are never hammered to "catch up"
  *
- * On top of the queues there is one rule: the REST GAP (settings.restDays).
- * Someone who worked any night within that many days of the slot is "resting"
- * and is only picked when nobody rested is available — never silently
- * preferred. That is what stops back-to-back and every-other-day duty.
+ * On top of the queues there is the REST GAP rule, now adjustable per kind of
+ * work: settings.restDays (after a normal duty/standby night),
+ * settings.restDaysSpecial (after a special-event duty) and
+ * settings.restDaysLocation (after a location stint). Someone who worked
+ * within the matching gap of the slot is "resting" and is only picked when
+ * nobody rested is available — never silently preferred. That is what stops
+ * back-to-back and every-other-day duty.
  */
 
 export interface QueueStats {
@@ -49,6 +52,12 @@ export interface QueueStats {
   standbyCount: number;
   /** Every date the person is committed (duty, standby, special, location day) — for the rest rule. */
   workedDates: Set<string>;
+  /** Normal duty/standby nights only — rest gap = settings.restDays. */
+  dutyDates: Set<string>;
+  /** Special-event duty days — rest gap = settings.restDaysSpecial. */
+  specialDates: Set<string>;
+  /** Location stint days — rest gap = settings.restDaysLocation. */
+  locationDates: Set<string>;
 }
 
 function later(a: string | null, b: string | null | undefined): string | null {
@@ -89,6 +98,9 @@ export function computeQueueStats(
         weekendCount: 0,
         standbyCount: 0,
         workedDates: new Set<string>(),
+        dutyDates: new Set<string>(),
+        specialDates: new Set<string>(),
+        locationDates: new Set<string>(),
       });
       joinById.set(p.id, p.activeSince);
     }
@@ -101,6 +113,7 @@ export function computeQueueStats(
     const since = joinById.get(a.personId);
     if (since && a.date < since) continue; // before they joined/returned
     q.workedDates.add(a.date);
+    q.dutyDates.add(a.date);
     if (asOf && a.date > asOf) continue; // future work never moves the queue
     if (a.crew === "duty") {
       if (isWeekend(a.date)) {
@@ -125,6 +138,7 @@ export function computeQueueStats(
     const since = joinById.get(s.personId);
     if (since && s.date < since) continue;
     q.workedDates.add(s.date);
+    q.specialDates.add(s.date);
     if (asOf && s.date > asOf) continue;
     q.lastWeekday = later(q.lastWeekday, s.date);
     q.lastWeekend = later(q.lastWeekend, s.date);
@@ -140,6 +154,7 @@ export function computeQueueStats(
     for (const d of eachDay(loc.startDate, loc.endDate)) {
       if (since && d < since) continue;
       q.workedDates.add(d);
+      q.locationDates.add(d);
     }
     if ((!since || loc.endDate >= since) && !(asOf && loc.endDate > asOf)) {
       q.lastWeekday = later(q.lastWeekday, loc.endDate);
@@ -211,14 +226,25 @@ export function recommendForSlot(
       .map((loc) => loc.personId),
   ]);
 
+  // Each kind of work has its own adjustable rest gap.
   const restDays = Math.max(0, Math.floor(settings.restDays));
-  const isResting = (q: QueueStats | undefined): boolean => {
-    if (!q || restDays === 0) return false;
-    for (const d of q.workedDates) {
+  const restSpecial = Math.max(0, Math.floor(settings.restDaysSpecial));
+  const restLocation = Math.max(0, Math.floor(settings.restDaysLocation));
+  const withinGap = (dates: Set<string>, gapDays: number): boolean => {
+    if (gapDays === 0) return false;
+    for (const d of dates) {
       const gap = Math.abs(diffDays(date, d));
-      if (gap > 0 && gap <= restDays) return true;
+      if (gap > 0 && gap <= gapDays) return true;
     }
     return false;
+  };
+  const isResting = (q: QueueStats | undefined): boolean => {
+    if (!q) return false;
+    return (
+      withinGap(q.dutyDates, restDays) ||
+      withinGap(q.specialDates, restSpecial) ||
+      withinGap(q.locationDates, restLocation)
+    );
   };
 
   const list: Candidate[] = people

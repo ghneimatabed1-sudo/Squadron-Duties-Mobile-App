@@ -236,6 +236,24 @@ function parseSettings(v: unknown): Settings {
     // Old backups (weight-based engine) simply fall back to the default rest
     // gap — their extra weight fields are dropped here.
     restDays: Math.round(num(s.restDays, DEFAULT_SETTINGS.restDays, 0, 7)),
+    // Backups from before the per-kind gaps inherit the general rest gap so
+    // behaviour is unchanged until the user adjusts them.
+    restDaysSpecial: Math.round(
+      num(
+        s.restDaysSpecial,
+        Math.round(num(s.restDays, DEFAULT_SETTINGS.restDaysSpecial, 0, 7)),
+        0,
+        7,
+      ),
+    ),
+    restDaysLocation: Math.round(
+      num(
+        s.restDaysLocation,
+        Math.round(num(s.restDays, DEFAULT_SETTINGS.restDaysLocation, 0, 7)),
+        0,
+        7,
+      ),
+    ),
   };
 }
 

@@ -537,7 +537,66 @@ function SetupView() {
       {app.state.availabilityCodes.map((c) => (
         <CodeRow key={c.id} id={c.id} onDelete={() => confirmDeleteCode(c.id)} />
       ))}
+      <AddCodeCard />
     </View>
+  );
+}
+
+function AddCodeCard() {
+  const { colors, row } = useUI();
+  const app = useApp();
+  const t = app.t;
+  const [code, setCode] = useState("");
+  const [label, setLabel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const add = () => {
+    const ok = app.addAvailabilityCode(code, label);
+    if (!ok) {
+      setError(t("avail_code_exists"));
+      return;
+    }
+    setCode("");
+    setLabel("");
+    setError(null);
+  };
+
+  return (
+    <Card style={{ marginTop: 4, gap: 10 }}>
+      <View style={{ flexDirection: row, gap: 10 }}>
+        <View style={{ width: 110 }}>
+          <Field
+            label={t("avail_code_label")}
+            value={code}
+            onChangeText={(v) => {
+              setCode(v);
+              setError(null);
+            }}
+            placeholder={t("avail_code_placeholder")}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field
+            label={t("avail_code_meaning")}
+            value={label}
+            onChangeText={setLabel}
+            placeholder={t("avail_code_meaning")}
+          />
+        </View>
+      </View>
+      {error ? (
+        <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: colors.destructive }}>
+          {error}
+        </Text>
+      ) : null}
+      <Btn
+        label={t("avail_add_code")}
+        icon="plus"
+        variant="secondary"
+        onPress={add}
+        disabled={!sanitizeCode(code)}
+      />
+    </Card>
   );
 }
 
@@ -548,12 +607,28 @@ function CodeRow({ id, onDelete }: { id: string; onDelete: () => void }) {
   const code = app.state.availabilityCodes.find((c) => c.id === id);
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(code?.label ?? "");
+  const [codeText, setCodeText] = useState(code?.code ?? "");
+  const [error, setError] = useState<string | null>(null);
   if (!code) return null;
 
   return (
     <Card style={{ marginBottom: 8 }}>
       <View style={{ flexDirection: row, alignItems: "center", gap: 12 }}>
-        <Pill label={code.code} tone="accent" />
+        {editing ? (
+          <View style={{ width: 90 }}>
+            <Field
+              label=""
+              value={codeText}
+              onChangeText={(v) => {
+                setCodeText(v);
+                setError(null);
+              }}
+              placeholder={t("avail_code_label")}
+            />
+          </View>
+        ) : (
+          <Pill label={code.code} tone="accent" />
+        )}
         <View style={{ flex: 1 }}>
           {editing ? (
             <Field label="" value={label} onChangeText={setLabel} placeholder={t("avail_code_meaning")} />
@@ -568,16 +643,28 @@ function CodeRow({ id, onDelete }: { id: string; onDelete: () => void }) {
           size={15}
           onPress={() => {
             if (editing) {
-              app.updateAvailabilityCode(id, { label });
+              const ok = app.updateAvailabilityCode(id, { code: codeText, label });
+              if (!ok) {
+                setError(t("avail_code_exists"));
+                return;
+              }
+              setError(null);
               setEditing(false);
             } else {
               setLabel(code.label);
+              setCodeText(code.code);
+              setError(null);
               setEditing(true);
             }
           }}
         />
         <IconButton icon="trash-2" size={15} onPress={onDelete} color={colors.destructive} bg={colors.destructive + "14"} />
       </View>
+      {error ? (
+        <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: colors.destructive, marginTop: 8, textAlign }}>
+          {error}
+        </Text>
+      ) : null}
       <Pressable
         onPress={() => {
           tap();
@@ -878,12 +965,31 @@ function RecommendSheet({ onClose }: { onClose: () => void }) {
         </Text>
         <ScrollView style={{ maxHeight: 480 }}>
           <SectionLabel text={t("avail_select_people")} />
-          <View style={{ flexDirection: row, flexWrap: "wrap", gap: 8 }}>
-            {app.orderedPeople.map((p) => (
-              <Toggle key={p.id} label={p.name} on={selected.has(p.id)} onPress={() => toggle(p.id)} />
-            ))}
-          </View>
-          <View style={{ height: 12 }} />
+          {(["captain", "copilot"] as const).map((role) => {
+            const group = app.orderedPeople.filter((p) => p.role === role);
+            if (group.length === 0) return null;
+            return (
+              <View key={role} style={{ marginBottom: 10 }}>
+                <Text
+                  style={{
+                    fontFamily: font.bold,
+                    fontSize: 12.5,
+                    color: colors.mutedForeground,
+                    marginBottom: 6,
+                    textAlign,
+                  }}
+                >
+                  {t(role)}
+                </Text>
+                <View style={{ flexDirection: row, flexWrap: "wrap", gap: 8 }}>
+                  {group.map((p) => (
+                    <Toggle key={p.id} label={p.name} on={selected.has(p.id)} onPress={() => toggle(p.id)} />
+                  ))}
+                </View>
+              </View>
+            );
+          })}
+          <View style={{ height: 2 }} />
           <DateField
             label={t("avail_for_date")}
             value={date}
@@ -911,6 +1017,10 @@ function RecommendSheet({ onClose }: { onClose: () => void }) {
                   <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between" }}>
                     <Text style={{ fontFamily: font.semibold, fontSize: 15, color: colors.foreground, textAlign }}>
                       {c.person.name}
+                      <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground }}>
+                        {"  ·  "}
+                        {t(c.person.role)}
+                      </Text>
                     </Text>
                     {i === 0 ? <Pill label={t("recommended")} tone="accent" /> : null}
                   </View>

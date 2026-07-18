@@ -116,6 +116,32 @@ export default function SettingsScreen() {
           <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, textAlign }}>
             {t("rest_days_hint")}
           </Text>
+          <Divider />
+          <Stepper
+            label={t("rest_days_special")}
+            value={s.restDaysSpecial}
+            min={0}
+            max={7}
+            step={1}
+            onChange={(v) => app.updateSettings({ restDaysSpecial: v })}
+            format={(v) => String(v)}
+          />
+          <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, textAlign }}>
+            {t("rest_days_special_hint")}
+          </Text>
+          <Divider />
+          <Stepper
+            label={t("rest_days_location")}
+            value={s.restDaysLocation}
+            min={0}
+            max={7}
+            step={1}
+            onChange={(v) => app.updateSettings({ restDaysLocation: v })}
+            format={(v) => String(v)}
+          />
+          <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, textAlign }}>
+            {t("rest_days_location_hint")}
+          </Text>
         </Card>
         <Card style={{ marginTop: 12 }}>
           <View style={{ flexDirection: row, gap: 10 }}>

@@ -9,6 +9,7 @@ import React, {
 } from "react";
 
 import {
+  codeKey,
   defaultCodes,
   ensureCode,
   mergeAvailability,
@@ -184,8 +185,9 @@ interface AppContextValue {
   setAvailability: (date: string, personId: string, code: string | null) => void;
   updateAvailabilityCode: (
     id: string,
-    partial: Partial<Pick<AvailabilityCode, "label" | "countsAsDayOff">>,
-  ) => void;
+    partial: Partial<Pick<AvailabilityCode, "code" | "label" | "countsAsDayOff">>,
+  ) => boolean;
+  addAvailabilityCode: (code: string, label: string) => boolean;
   removeAvailabilityCode: (id: string) => void;
   moveRosterOrder: (personId: string, direction: -1 | 1) => void;
   importAvailabilityJson: (json: string) => MergeResult;
@@ -359,24 +361,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateAvailabilityCode = useCallback(
     (
       id: string,
-      partial: Partial<Pick<AvailabilityCode, "label" | "countsAsDayOff">>,
-    ) => {
-      setState((s) => ({
-        ...s,
-        availabilityCodes: s.availabilityCodes.map((c) =>
-          c.id === id
-            ? {
-                ...c,
-                ...(partial.label !== undefined
-                  ? { label: partial.label.trim().slice(0, 60) || c.code }
-                  : {}),
-                ...(partial.countsAsDayOff !== undefined
-                  ? { countsAsDayOff: partial.countsAsDayOff }
-                  : {}),
-              }
-            : c,
-        ),
-      }));
+      partial: Partial<Pick<AvailabilityCode, "code" | "label" | "countsAsDayOff">>,
+    ): boolean => {
+      let ok = true;
+      setState((s) => {
+        const target = s.availabilityCodes.find((c) => c.id === id);
+        if (!target) {
+          ok = false;
+          return s;
+        }
+        let newCode: string | undefined;
+        if (partial.code !== undefined) {
+          const clean = sanitizeCode(partial.code);
+          if (!clean) {
+            ok = false;
+            return s;
+          }
+          // Block a rename that collides with a DIFFERENT existing code.
+          const clash = s.availabilityCodes.find(
+            (c) => c.id !== id && codeKey(c.code) === codeKey(clean),
+          );
+          if (clash) {
+            ok = false;
+            return s;
+          }
+          if (clean !== target.code) newCode = clean;
+        }
+        const oldKey = codeKey(target.code);
+        return {
+          ...s,
+          availabilityCodes: s.availabilityCodes.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  ...(newCode !== undefined ? { code: newCode } : {}),
+                  ...(partial.label !== undefined
+                    ? {
+                        label:
+                          partial.label.trim().slice(0, 60) ||
+                          (newCode ?? c.code),
+                      }
+                    : {}),
+                  ...(partial.countsAsDayOff !== undefined
+                    ? { countsAsDayOff: partial.countsAsDayOff }
+                    : {}),
+                }
+              : c,
+          ),
+          // Renaming a code carries every existing day mark with it.
+          availability:
+            newCode !== undefined
+              ? s.availability.map((e) =>
+                  codeKey(e.code) === oldKey ? { ...e, code: newCode! } : e,
+                )
+              : s.availability,
+        };
+      });
+      return ok;
+    },
+    [],
+  );
+
+  const addAvailabilityCode = useCallback(
+    (code: string, label: string): boolean => {
+      const clean = sanitizeCode(code);
+      if (!clean) return false;
+      let ok = true;
+      setState((s) => {
+        if (s.availabilityCodes.some((c) => codeKey(c.code) === codeKey(clean))) {
+          ok = false;
+          return s;
+        }
+        const r = ensureCode(s.availabilityCodes, clean, label);
+        return { ...s, availabilityCodes: r.codes };
+      });
+      return ok;
     },
     [],
   );
@@ -1032,6 +1091,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     getAvailability,
     setAvailability,
     updateAvailabilityCode,
+    addAvailabilityCode,
     removeAvailabilityCode,
     moveRosterOrder,
     importAvailabilityJson,

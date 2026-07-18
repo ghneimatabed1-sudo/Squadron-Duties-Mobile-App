@@ -205,7 +205,13 @@ const en: Dict = {
   settings_rotation: "Rotation rules",
   rest_days: "Rest days after a duty",
   rest_days_hint:
-    "Minimum free days after any duty before someone is offered again. 1 = never two nights in a row. 0 = no rest rule. People still resting are only used when nobody else is available.",
+    "Minimum free days after a normal duty or standby night before someone is offered again. 1 = never two nights in a row. 0 = no rest rule. People still resting are only used when nobody else is available.",
+  rest_days_special: "Rest days after an event duty",
+  rest_days_special_hint:
+    "Free days after a special-event duty before the person is offered a slot again. 0 = no rest after events.",
+  rest_days_location: "Rest days after a location duty",
+  rest_days_location_hint:
+    "Free days after a location stint ends before the person is offered a slot again. 0 = no rest after locations.",
   rotation_explainer:
     "Duty runs as a rotation queue: whoever has waited longest since their last turn is next. Weekdays, weekends and standby each rotate separately, so a heavy weekend never exempts anyone from weekdays.",
   resting: "Resting",
@@ -267,8 +273,11 @@ const en: Dict = {
   avail_clear_mark: "Clear mark",
   avail_codes: "Status codes",
   avail_codes_hint:
-    "Every code you type is remembered here. Edit its meaning or mark which ones count as a day off.",
+    "Every code you type is remembered here. Add your own presets, edit a code or its meaning, or mark which ones count as a day off.",
   avail_code_meaning: "Meaning",
+  avail_add_code: "Add code",
+  avail_code_label: "Code",
+  avail_code_exists: "This code already exists.",
   avail_counts_day_off: "Counts as day off",
   avail_delete_code_confirm: "Delete this code and every mark that uses it?",
   avail_order: "Fixed order",
@@ -510,7 +519,13 @@ const ar: Dict = {
   settings_rotation: "قواعد التناوب",
   rest_days: "أيام الراحة بعد المناوبة",
   rest_days_hint:
-    "أقل عدد أيام راحة بعد أي مناوبة قبل عرض الشخص مجددًا. ١ = لا مناوبتين متتاليتين أبدًا. ٠ = بلا قاعدة راحة. من في فترة الراحة لا يُختار إلا إذا لم يتوفر غيره.",
+    "أقل عدد أيام راحة بعد مناوبة أو ليلة احتياط عادية قبل عرض الشخص مجددًا. ١ = لا مناوبتين متتاليتين أبدًا. ٠ = بلا قاعدة راحة. من في فترة الراحة لا يُختار إلا إذا لم يتوفر غيره.",
+  rest_days_special: "أيام الراحة بعد مناوبة مناسبة",
+  rest_days_special_hint:
+    "أيام الراحة بعد مناوبة مناسبة خاصة قبل عرض الشخص لمناوبة جديدة. ٠ = بلا راحة بعد المناسبات.",
+  rest_days_location: "أيام الراحة بعد مهمة موقع",
+  rest_days_location_hint:
+    "أيام الراحة بعد انتهاء مهمة في موقع قبل عرض الشخص لمناوبة جديدة. ٠ = بلا راحة بعد المواقع.",
   rotation_explainer:
     "تعمل المناوبات كطابور تناوب: من انتظر أطول مدة منذ آخر دور له يكون التالي. أيام الأسبوع ونهايات الأسبوع والاحتياط تتناوب كلٌّ على حدة، فلا تُعفي نهايةُ أسبوع مزدحمة أحدًا من أيام الأسبوع.",
   resting: "في فترة راحة",
@@ -569,8 +584,11 @@ const ar: Dict = {
   avail_clear_mark: "مسح الرمز",
   avail_codes: "رموز الحالة",
   avail_codes_hint:
-    "كل رمز تكتبه يُحفظ هنا. عدّل معناه أو حدّد الرموز التي تُحتسب كيوم إجازة.",
+    "كل رمز تكتبه يُحفظ هنا. أضف رموزك الجاهزة، أو عدّل الرمز أو معناه، أو حدّد الرموز التي تُحتسب كيوم إجازة.",
   avail_code_meaning: "المعنى",
+  avail_add_code: "إضافة رمز",
+  avail_code_label: "الرمز",
+  avail_code_exists: "هذا الرمز موجود بالفعل.",
   avail_counts_day_off: "يُحتسب كيوم إجازة",
   avail_delete_code_confirm: "حذف هذا الرمز وكل العلامات التي تستخدمه؟",
   avail_order: "الترتيب الثابت",
