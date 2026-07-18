@@ -80,9 +80,9 @@ export interface AutoFillInput {
  * Behaviour notes:
  * - Block weekends (Thu–Fri–Sat not in `splitWeekends`) are filled once, with a
  *   single crew written across all weekend days in range.
- * - The slot's own date is used as the fairness reference so people picked
- *   earlier in this run are counted as "ahead" for later days (real-time
- *   rebalancing during multi-week planning).
+ * - Picks made earlier in this run are part of the working history, so the
+ *   rotation queue advances in real time during multi-week planning (someone
+ *   picked yesterday moves to the back of the line for today).
  * - The chosen person must be free on EVERY day they would be written to, so a
  *   block pick can never double-book a day where they already hold another slot.
  *
@@ -156,7 +156,6 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
             locations,
             settings,
             role,
-            ref,
             ref,
             crew,
           );

@@ -202,6 +202,18 @@ const en: Dict = {
   squadron_name: "Squadron name",
   squadron_name_placeholder: "e.g. 8th Squadron",
   squadron_name_hint: "Shown at the top of your roster.",
+  settings_rotation: "Rotation rules",
+  rest_days: "Rest days after a duty",
+  rest_days_hint:
+    "Minimum free days after any duty before someone is offered again. 1 = never two nights in a row. 0 = no rest rule. People still resting are only used when nobody else is available.",
+  rotation_explainer:
+    "Duty runs as a rotation queue: whoever has waited longest since their last turn is next. Weekdays, weekends and standby each rotate separately, so a heavy weekend never exempts anyone from weekdays.",
+  resting: "Resting",
+  resting_hint: "Worked recently — only if no one else can",
+  resting_warning:
+    "worked within the rest gap. Pick them only if nobody rested is available.",
+  no_turn_yet: "No turn yet — front of the line",
+  days_since_turn: "days since last turn",
   settings_fairness: "Fairness tuning",
   window_days: "Balancing window (days)",
   window_days_hint:
@@ -448,6 +460,17 @@ const ar: Dict = {
   squadron_name: "اسم السرب",
   squadron_name_placeholder: "مثال: السرب الثامن",
   squadron_name_hint: "يظهر أعلى جدول المناوبات.",
+  settings_rotation: "قواعد التناوب",
+  rest_days: "أيام الراحة بعد المناوبة",
+  rest_days_hint:
+    "أقل عدد أيام راحة بعد أي مناوبة قبل عرض الشخص مجددًا. ١ = لا مناوبتين متتاليتين أبدًا. ٠ = بلا قاعدة راحة. من في فترة الراحة لا يُختار إلا إذا لم يتوفر غيره.",
+  rotation_explainer:
+    "تعمل المناوبات كطابور تناوب: من انتظر أطول مدة منذ آخر دور له يكون التالي. أيام الأسبوع ونهايات الأسبوع والاحتياط تتناوب كلٌّ على حدة، فلا تُعفي نهايةُ أسبوع مزدحمة أحدًا من أيام الأسبوع.",
+  resting: "في فترة راحة",
+  resting_hint: "ناوب مؤخرًا — فقط إذا لم يتوفر غيره",
+  resting_warning: "ناوب ضمن فترة الراحة. اختره فقط إذا لم يتوفر أحد مرتاح.",
+  no_turn_yet: "لم يأخذ دورًا بعد — في مقدمة الطابور",
+  days_since_turn: "يومًا منذ آخر دور",
   settings_fairness: "ضبط العدالة",
   window_days: "نافذة الموازنة (أيام)",
   window_days_hint: "عدد الأيام الأخيرة المحتسبة عند موازنة العبء. الافتراضي ٢١.",

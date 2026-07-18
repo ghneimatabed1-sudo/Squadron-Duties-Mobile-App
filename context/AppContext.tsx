@@ -15,12 +15,10 @@ import {
   computeTotals,
   LocationCandidate,
   PersonTotals,
-  previewSwap,
   recommendForLocation,
   recommendForLocationCrew,
   recommendForSlot,
   recommendForSpecial,
-  SwapPreview,
 } from "@/lib/fairness";
 import { makeT, weekdayNames, weekdayShort } from "@/lib/i18n";
 import { autoFill, rebalanceAssignments, upsertAssignment } from "@/lib/schedule";
@@ -65,7 +63,6 @@ interface AppContextValue {
   // settings
   setLanguage: (lang: Language) => void;
   updateSettings: (partial: Partial<Settings>) => void;
-  resetWeights: () => void;
 
   // people
   addPerson: (name: string, role: SlotRole, singleCover?: boolean) => void;
@@ -167,14 +164,6 @@ interface AppContextValue {
     locationName: string,
     siblingExcluded: string[],
   ) => Candidate[];
-  swapPreview: (
-    date: string,
-    crew: CrewKind,
-    role: SlotRole,
-    outId: string | null,
-    inId: string,
-    crewIndex?: number,
-  ) => SwapPreview;
   totals: (startDate: string, endDate: string, role: SlotRole) => PersonTotals[];
   personName: (id: string) => string;
 
@@ -230,21 +219,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((partial: Partial<Settings>) => {
     setState((s) => ({ ...s, settings: { ...s.settings, ...partial } }));
   }, []);
-  const resetWeights = useCallback(() => {
-    setState((s) => ({
-      ...s,
-      settings: {
-        ...s.settings,
-        dutyWeight: DEFAULT_SETTINGS.dutyWeight,
-        weekendWeight: DEFAULT_SETTINGS.weekendWeight,
-        standbyWeight: DEFAULT_SETTINGS.standbyWeight,
-        specialWeight: DEFAULT_SETTINGS.specialWeight,
-        locationWeight: DEFAULT_SETTINGS.locationWeight,
-        windowDays: DEFAULT_SETTINGS.windowDays,
-      },
-    }));
-  }, []);
-
   // ---- people ----
   const addPerson = useCallback(
     (name: string, role: SlotRole, singleCover: boolean = false) => {
@@ -774,15 +748,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         state.settings,
         role,
         date,
-        // Use the slot's own date as the fairness reference so manual
-        // recommendations for future days rebalance consistently with
-        // multi-week auto-planning (today would exclude future picks from
-        // the backward-looking window).
-        date,
-        // Pass the crew kind so the ranking matches auto-fill exactly:
-        // duty slots rank category-aware (weekday vs weekend), standby
-        // ranks by plain weighted load. Omitting this made the manual
-        // picker's "Recommended" disagree with auto-fill on standby slots.
+        // Pass the crew kind so the queue matches auto-fill exactly: duty
+        // slots use the weekday/weekend queue, standby uses its own queue.
         crew,
       ),
     [
@@ -801,10 +768,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         state.assignments,
         state.specials,
         state.locations,
-        state.settings,
         role,
         eventKey,
-        todayISO(),
       ),
     [
       state.people,
@@ -849,40 +814,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [state.people, state.locations, state.specials, state.locationDefs],
   );
 
-  const swapPreview = useCallback(
-    (
-      date: string,
-      crew: CrewKind,
-      role: SlotRole,
-      outId: string | null,
-      inId: string,
-      crewIndex = 0,
-    ) =>
-      previewSwap(
-        state.people,
-        state.assignments,
-        state.specials,
-        state.locations,
-        state.settings,
-        role,
-        date,
-        crew,
-        outId,
-        inId,
-        // Reference the slot's own date so the before/after balances reflect
-        // the window around that day (consistent with recommendSlot).
-        date,
-        crewIndex,
-      ),
-    [
-      state.people,
-      state.assignments,
-      state.specials,
-      state.locations,
-      state.settings,
-    ],
-  );
-
   const totals = useCallback(
     (startDate: string, endDate: string, role: SlotRole) =>
       computeTotals(
@@ -890,18 +821,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         state.assignments,
         state.specials,
         state.locations,
-        state.settings,
         startDate,
         endDate,
         role,
       ),
-    [
-      state.people,
-      state.assignments,
-      state.specials,
-      state.locations,
-      state.settings,
-    ],
+    [state.people, state.assignments, state.specials, state.locations],
   );
 
   // ---- data ----
@@ -922,7 +846,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     weekdayAbbr,
     setLanguage,
     updateSettings,
-    resetWeights,
     addPerson,
     setPersonActive,
     setPersonSingleCover,
@@ -957,7 +880,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recommendSpecial,
     recommendLocation,
     recommendLocationCrew,
-    swapPreview,
     totals,
     personName,
     exportJson,

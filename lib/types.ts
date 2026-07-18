@@ -82,12 +82,13 @@ export interface LocationDef {
 export interface Settings {
   language: Language;
   squadronName: string; // shown on the roster header, e.g. "8th Squadron"
-  windowDays: number; // recent window for fairness balancing
-  dutyWeight: number; // weight per weekday duty day
-  weekendWeight: number; // weight per weekend duty day
-  standbyWeight: number; // weight per activated standby
-  specialWeight: number; // weight per special event
-  locationWeight: number; // weight per day of location duty
+  /**
+   * Rest gap: minimum free days after any worked night before the rotation
+   * queue offers the person again. 1 = never back-to-back (default);
+   * 0 = no rest rule. People inside the gap are only used when nobody
+   * rested is available.
+   */
+  restDays: number;
 }
 
 export interface AppState {
@@ -117,12 +118,7 @@ export interface AppState {
 export const DEFAULT_SETTINGS: Settings = {
   language: "en",
   squadronName: "",
-  windowDays: 21,
-  dutyWeight: 1,
-  weekendWeight: 1.5,
-  standbyWeight: 1,
-  specialWeight: 3,
-  locationWeight: 1,
+  restDays: 1,
 };
 
 export const DEFAULT_STATE: AppState = {

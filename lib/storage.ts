@@ -190,17 +190,9 @@ function parseSettings(v: unknown): Settings {
     language,
     squadronName:
       typeof s.squadronName === "string" ? s.squadronName.slice(0, 60) : "",
-    windowDays: Math.round(num(s.windowDays, DEFAULT_SETTINGS.windowDays, 7, 90)),
-    dutyWeight: num(s.dutyWeight, DEFAULT_SETTINGS.dutyWeight, 0.5, 10),
-    weekendWeight: num(s.weekendWeight, DEFAULT_SETTINGS.weekendWeight, 0.5, 10),
-    standbyWeight: num(s.standbyWeight, DEFAULT_SETTINGS.standbyWeight, 0.5, 10),
-    specialWeight: num(s.specialWeight, DEFAULT_SETTINGS.specialWeight, 0.5, 10),
-    locationWeight: num(
-      s.locationWeight,
-      DEFAULT_SETTINGS.locationWeight,
-      0.5,
-      10,
-    ),
+    // Old backups (weight-based engine) simply fall back to the default rest
+    // gap — their extra weight fields are dropped here.
+    restDays: Math.round(num(s.restDays, DEFAULT_SETTINGS.restDays, 0, 7)),
   };
 }
 

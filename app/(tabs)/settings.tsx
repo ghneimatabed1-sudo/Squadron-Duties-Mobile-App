@@ -102,35 +102,29 @@ export default function SettingsScreen() {
         </Card>
 
         <View style={{ height: 20 }} />
-        <SectionLabel text={t("settings_fairness")} />
+        <SectionLabel text={t("settings_rotation")} />
         <Card>
           <Stepper
-            label={t("window_days")}
-            value={s.windowDays}
-            min={7}
-            max={90}
+            label={t("rest_days")}
+            value={s.restDays}
+            min={0}
+            max={7}
             step={1}
-            onChange={(v) => app.updateSettings({ windowDays: v })}
+            onChange={(v) => app.updateSettings({ restDays: v })}
             format={(v) => String(v)}
           />
-          <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, marginBottom: 14, textAlign }}>
-            {t("window_days_hint")}
-          </Text>
-          <Divider />
-          <Stepper label={t("duty_weight")} value={s.dutyWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ dutyWeight: v })} format={(v) => v.toFixed(1)} />
-          <Divider />
-          <Stepper label={t("weekend_weight")} value={s.weekendWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ weekendWeight: v })} format={(v) => v.toFixed(1)} />
-          <Divider />
-          <Stepper label={t("standby_weight")} value={s.standbyWeight} min={0.5} max={5} step={0.5} onChange={(v) => app.updateSettings({ standbyWeight: v })} format={(v) => v.toFixed(1)} />
-          <Divider />
-          <Stepper label={t("special_weight")} value={s.specialWeight} min={0.5} max={10} step={0.5} onChange={(v) => app.updateSettings({ specialWeight: v })} format={(v) => v.toFixed(1)} />
-          <Divider />
-          <Stepper label={t("location_weight")} value={s.locationWeight} min={0.5} max={10} step={0.5} onChange={(v) => app.updateSettings({ locationWeight: v })} format={(v) => v.toFixed(1)} />
           <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginTop: 6, textAlign }}>
-            {t("location_weight_hint")}
+            {t("rest_days_hint")}
           </Text>
         </Card>
-        <Btn label={t("reset_weights")} variant="ghost" icon="rotate-ccw" onPress={() => app.resetWeights()} style={{ marginTop: 12 }} />
+        <Card style={{ marginTop: 12 }}>
+          <View style={{ flexDirection: row, gap: 10 }}>
+            <Feather name="rotate-cw" size={18} color={colors.primary} />
+            <Text style={{ flex: 1, fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, lineHeight: 20, textAlign }}>
+              {t("rotation_explainer")}
+            </Text>
+          </View>
+        </Card>
 
         <View style={{ height: 20 }} />
         <SectionLabel text={t("data_management")} />
