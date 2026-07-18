@@ -18,6 +18,7 @@ const TABS: {
 }[] = [
   { name: "index", titleKey: "tab_schedule", feather: "calendar", sf: "calendar" },
   { name: "roster", titleKey: "tab_roster", feather: "users", sf: "person.2" },
+  { name: "availability", titleKey: "tab_availability", feather: "clipboard", sf: "checklist" },
   { name: "tracking", titleKey: "tab_tracking", feather: "bar-chart-2", sf: "chart.bar" },
   { name: "events", titleKey: "tab_events", feather: "star", sf: "star" },
   { name: "settings", titleKey: "tab_settings", feather: "settings", sf: "gearshape" },

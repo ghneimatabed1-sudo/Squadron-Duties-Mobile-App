@@ -1,8 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { codeKey, defaultCodes, sanitizeCode } from "./availability";
 import { isValidISO, isWeekend, weekendDates } from "./dates";
 import {
   AppState,
+  AvailabilityCode,
+  AvailabilityEntry,
   Assignment,
   CrewKind,
   DEFAULT_SETTINGS,
@@ -15,6 +18,7 @@ import {
   SlotRole,
   SoloAssignment,
   SpecialAssignment,
+  uid,
 } from "./types";
 
 const KEY = "squadron_duty_state_v1";
@@ -183,6 +187,45 @@ function parseSolo(
   return { id: v.id, date: v.date, personId: v.personId };
 }
 
+function parseAvailabilityEntry(
+  v: unknown,
+  peopleIds: Set<string>,
+): AvailabilityEntry | null {
+  if (!isObj(v)) return null;
+  if (
+    !isValidISO(v.date) ||
+    !isNonEmptyStr(v.personId) ||
+    !peopleIds.has(v.personId) ||
+    typeof v.code !== "string"
+  ) {
+    return null;
+  }
+  const code = sanitizeCode(v.code);
+  if (!code) return null;
+  return {
+    id: isNonEmptyStr(v.id) ? v.id : uid(),
+    personId: v.personId,
+    date: v.date,
+    code,
+  };
+}
+
+function parseAvailabilityCode(v: unknown): AvailabilityCode | null {
+  if (!isObj(v)) return null;
+  if (typeof v.code !== "string") return null;
+  const code = sanitizeCode(v.code);
+  if (!code) return null;
+  return {
+    id: isNonEmptyStr(v.id) ? v.id : uid(),
+    code,
+    label:
+      typeof v.label === "string" && v.label.trim()
+        ? v.label.trim().slice(0, 60)
+        : code,
+    countsAsDayOff: v.countsAsDayOff === true,
+  };
+}
+
 function parseSettings(v: unknown): Settings {
   const s = isObj(v) ? v : {};
   const language: Language = s.language === "ar" ? "ar" : "en";
@@ -301,6 +344,62 @@ export function normalize(obj: unknown): AppState {
     }
   }
 
+  // Availability code dictionary: dedupe by case-insensitive code. Old
+  // backups without codes get the standard seed set.
+  const availabilityCodes: AvailabilityCode[] = [];
+  const codeKeys = new Set<string>();
+  if (Array.isArray(obj.availabilityCodes)) {
+    for (const raw of obj.availabilityCodes) {
+      const c = parseAvailabilityCode(raw);
+      if (!c) continue;
+      const k = codeKey(c.code);
+      if (codeKeys.has(k)) continue;
+      codeKeys.add(k);
+      availabilityCodes.push(c);
+    }
+  }
+  if (availabilityCodes.length === 0) {
+    for (const c of defaultCodes()) {
+      availabilityCodes.push(c);
+      codeKeys.add(codeKey(c.code));
+    }
+  }
+
+  // Availability marks: one per (person, date); ensure every referenced code
+  // exists in the dictionary so it stays reusable.
+  const availability: AvailabilityEntry[] = [];
+  const availKeys = new Set<string>();
+  if (Array.isArray(obj.availability)) {
+    for (const raw of obj.availability) {
+      const e = parseAvailabilityEntry(raw, peopleIds);
+      if (!e) continue;
+      const key = `${e.personId}|${e.date}`;
+      if (availKeys.has(key)) continue;
+      availKeys.add(key);
+      availability.push(e);
+      const ck = codeKey(e.code);
+      if (!codeKeys.has(ck)) {
+        codeKeys.add(ck);
+        availabilityCodes.push({
+          id: uid(),
+          code: e.code,
+          label: e.code,
+          countsAsDayOff: false,
+        });
+      }
+    }
+  }
+
+  // Fixed manual roster order: known, unique person ids only.
+  const rosterOrder: string[] = [];
+  if (Array.isArray(obj.rosterOrder)) {
+    for (const raw of obj.rosterOrder) {
+      if (isNonEmptyStr(raw) && peopleIds.has(raw) && !rosterOrder.includes(raw)) {
+        rosterOrder.push(raw);
+      }
+    }
+  }
+
   return {
     people,
     assignments,
@@ -310,6 +409,9 @@ export function normalize(obj: unknown): AppState {
     solos,
     splitWeekends,
     extraCrews,
+    availability,
+    availabilityCodes,
+    rosterOrder,
     settings: parseSettings(obj.settings),
     version: 1,
   };

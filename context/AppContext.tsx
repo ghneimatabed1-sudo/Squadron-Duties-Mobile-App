@@ -8,6 +8,15 @@ import React, {
   useState,
 } from "react";
 
+import {
+  defaultCodes,
+  ensureCode,
+  mergeAvailability,
+  MergeResult,
+  orderPeople,
+  parseAvailabilityExport,
+  sanitizeCode,
+} from "@/lib/availability";
 import { addDays, eachDay, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
 import { buildDemoState } from "@/lib/demo";
 import {
@@ -26,6 +35,7 @@ import { loadState, normalize, saveState } from "@/lib/storage";
 import {
   AppState,
   Assignment,
+  AvailabilityCode,
   CrewKind,
   DEFAULT_SETTINGS,
   DEFAULT_STATE,
@@ -167,6 +177,19 @@ interface AppContextValue {
   totals: (startDate: string, endDate: string, role: SlotRole) => PersonTotals[];
   personName: (id: string) => string;
 
+  // availability
+  /** Active roster people in the FIXED manual order. */
+  orderedPeople: Person[];
+  getAvailability: (date: string, personId: string) => string | undefined;
+  setAvailability: (date: string, personId: string, code: string | null) => void;
+  updateAvailabilityCode: (
+    id: string,
+    partial: Partial<Pick<AvailabilityCode, "label" | "countsAsDayOff">>,
+  ) => void;
+  removeAvailabilityCode: (id: string) => void;
+  moveRosterOrder: (personId: string, direction: -1 | 1) => void;
+  importAvailabilityJson: (json: string) => MergeResult;
+
   // data
   exportJson: () => string;
   importJson: (json: string) => void;
@@ -187,7 +210,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else if (typeof __DEV__ !== "undefined" && __DEV__) {
         // DEV-only: seed a populated demo squadron so the preview is not blank.
         // Release builds always start clean for real data.
-        setState(buildDemoState());
+        setState({ ...buildDemoState(), availabilityCodes: defaultCodes() });
+      } else {
+        // Fresh install: start with the standard availability codes.
+        setState((s) =>
+          s.availabilityCodes.length ? s : { ...s, availabilityCodes: defaultCodes() },
+        );
       }
       hydrated.current = true;
       setReady(true);
@@ -287,8 +315,126 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         excluded: d.excluded.filter((pid) => pid !== id),
       })),
       solos: s.solos.filter((so) => so.personId !== id),
+      availability: s.availability.filter((e) => e.personId !== id),
+      rosterOrder: s.rosterOrder.filter((pid) => pid !== id),
     }));
   }, []);
+
+  // ---- availability ----
+  const orderedPeople = useMemo(
+    () => orderPeople(state.people.filter((p) => p.active), state.rosterOrder),
+    [state.people, state.rosterOrder],
+  );
+
+  const getAvailability = useCallback(
+    (date: string, personId: string) =>
+      state.availability.find((e) => e.date === date && e.personId === personId)
+        ?.code,
+    [state.availability],
+  );
+
+  const setAvailability = useCallback(
+    (date: string, personId: string, code: string | null) => {
+      setState((s) => {
+        const rest = s.availability.filter(
+          (e) => !(e.date === date && e.personId === personId),
+        );
+        if (!code || !sanitizeCode(code)) {
+          return { ...s, availability: rest };
+        }
+        const r = ensureCode(s.availabilityCodes, code);
+        return {
+          ...s,
+          availabilityCodes: r.codes,
+          availability: [
+            ...rest,
+            { id: uid(), date, personId, code: r.code },
+          ],
+        };
+      });
+    },
+    [],
+  );
+
+  const updateAvailabilityCode = useCallback(
+    (
+      id: string,
+      partial: Partial<Pick<AvailabilityCode, "label" | "countsAsDayOff">>,
+    ) => {
+      setState((s) => ({
+        ...s,
+        availabilityCodes: s.availabilityCodes.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                ...(partial.label !== undefined
+                  ? { label: partial.label.trim().slice(0, 60) || c.code }
+                  : {}),
+                ...(partial.countsAsDayOff !== undefined
+                  ? { countsAsDayOff: partial.countsAsDayOff }
+                  : {}),
+              }
+            : c,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const removeAvailabilityCode = useCallback((id: string) => {
+    setState((s) => {
+      const target = s.availabilityCodes.find((c) => c.id === id);
+      if (!target) return s;
+      return {
+        ...s,
+        availabilityCodes: s.availabilityCodes.filter((c) => c.id !== id),
+        // Marks using a deleted code are removed too — never orphaned.
+        availability: s.availability.filter((e) => e.code !== target.code),
+      };
+    });
+  }, []);
+
+  const moveRosterOrder = useCallback(
+    (personId: string, direction: -1 | 1) => {
+      setState((s) => {
+        // Materialize the full current order (listed + unlisted) so a first
+        // move works even before the user has ever arranged anyone.
+        const ids = orderPeople(
+          s.people.filter((p) => p.active),
+          s.rosterOrder,
+        ).map((p) => p.id);
+        const i = ids.indexOf(personId);
+        const j = i + direction;
+        if (i < 0 || j < 0 || j >= ids.length) return s;
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+        return { ...s, rosterOrder: ids };
+      });
+    },
+    [],
+  );
+
+  const importAvailabilityJson = useCallback(
+    (json: string): MergeResult => {
+      const incoming = parseAvailabilityExport(json);
+      const result = mergeAvailability(
+        {
+          people: state.people,
+          entries: state.availability,
+          codes: state.availabilityCodes,
+          order: state.rosterOrder,
+        },
+        incoming,
+      );
+      setState((s) => ({
+        ...s,
+        availability: result.entries,
+        availabilityCodes: result.codes,
+        rosterOrder: result.order,
+      }));
+      return result;
+    },
+    [state.people, state.availability, state.availabilityCodes, state.rosterOrder],
+  );
 
   // ---- schedule ----
   const getAssignment = useCallback(
@@ -882,6 +1028,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recommendLocationCrew,
     totals,
     personName,
+    orderedPeople,
+    getAvailability,
+    setAvailability,
+    updateAvailabilityCode,
+    removeAvailabilityCode,
+    moveRosterOrder,
+    importAvailabilityJson,
     exportJson,
     importJson,
   };

@@ -79,6 +79,38 @@ export interface LocationDef {
   excluded: string[]; // personIds barred from this location
 }
 
+/**
+ * One availability mark: a person has a status code on a date (e.g. "SK" on
+ * 2026-07-18). At most one entry per (person, date); setting a new code for
+ * the same person+date replaces the old one.
+ */
+export interface AvailabilityEntry {
+  id: string;
+  personId: string;
+  date: string; // yyyy-mm-dd
+  code: string; // references AvailabilityCode.code (case-insensitive key)
+}
+
+/**
+ * A user-managed status code (SK, SL, CR, L, ML, or any custom code/phrase).
+ * Once a code has been typed anywhere it is remembered here and reusable.
+ */
+export interface AvailabilityCode {
+  id: string;
+  code: string; // short code shown in day boxes, e.g. "SK"
+  label: string; // editable meaning, e.g. "Sick"
+  /** Counts toward "day off" totals used by the day-off recommendation. */
+  countsAsDayOff: boolean;
+}
+
+export const DEFAULT_AVAILABILITY_CODES: Omit<AvailabilityCode, "id">[] = [
+  { code: "SK", label: "Sick", countsAsDayOff: false },
+  { code: "SL", label: "Sick leave", countsAsDayOff: false },
+  { code: "CR", label: "Crew rest", countsAsDayOff: false },
+  { code: "L", label: "Leave / day off", countsAsDayOff: true },
+  { code: "ML", label: "Morning leave", countsAsDayOff: true },
+];
+
 export interface Settings {
   language: Language;
   squadronName: string; // shown on the roster header, e.g. "8th Squadron"
@@ -111,6 +143,16 @@ export interface AppState {
    * (even still-empty) extra crew survives reload and is filled by auto-fill.
    */
   extraCrews: Record<string, number>;
+  /** Daily availability marks (one per person per day). */
+  availability: AvailabilityEntry[];
+  /** Every status code the app has seen; user-editable dictionary. */
+  availabilityCodes: AvailabilityCode[];
+  /**
+   * FIXED manual display order for the roster (array of personIds). People not
+   * listed here (e.g. newly added) go after the listed ones, oldest first.
+   * Used by every availability view and export — never auto-sorted.
+   */
+  rosterOrder: string[];
   settings: Settings;
   version: number;
 }
@@ -130,6 +172,9 @@ export const DEFAULT_STATE: AppState = {
   solos: [],
   splitWeekends: [],
   extraCrews: {},
+  availability: [],
+  availabilityCodes: [],
+  rosterOrder: [],
   settings: DEFAULT_SETTINGS,
   version: 1,
 };
