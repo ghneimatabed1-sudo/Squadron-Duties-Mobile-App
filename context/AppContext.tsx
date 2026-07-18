@@ -77,6 +77,7 @@ interface AppContextValue {
 
   // people
   addPerson: (name: string, role: SlotRole, singleCover?: boolean) => void;
+  renamePerson: (id: string, name: string) => void;
   setPersonActive: (id: string, active: boolean) => void;
   setPersonSingleCover: (id: string, singleCover: boolean) => void;
   deletePerson: (id: string) => void;
@@ -273,6 +274,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+  // Renaming is safe everywhere: every duty, standby, special, location,
+  // availability mark and export references the person by ID, so the new name
+  // shows up instantly across the whole app.
+  const renamePerson = useCallback((id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setState((s) => ({
+      ...s,
+      people: s.people.map((p) =>
+        p.id === id ? { ...p, name: trimmed } : p,
+      ),
+    }));
+  }, []);
   const setPersonActive = useCallback((id: string, active: boolean) => {
     setState((s) => ({
       ...s,
@@ -1052,6 +1066,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLanguage,
     updateSettings,
     addPerson,
+    renamePerson,
     setPersonActive,
     setPersonSingleCover,
     deletePerson,

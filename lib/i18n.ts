@@ -330,6 +330,10 @@ const en: Dict = {
   duties_never: "Never",
   planned: "Planned",
   predicted: "Predicted",
+
+  rename_person: "Rename",
+  rename_person_hint:
+    "The new name applies everywhere instantly — every duty, standby, event, location and availability record follows the person automatically.",
 };
 
 const ar: Dict = {
@@ -656,6 +660,10 @@ const ar: Dict = {
   duties_never: "أبدًا",
   planned: "مخطط",
   predicted: "متوقع",
+
+  rename_person: "إعادة تسمية",
+  rename_person_hint:
+    "الاسم الجديد يطبق في كل مكان فورًا — كل مناوبة واستعداد ومناسبة وموقع وسجل جاهزية يتبع الشخص تلقائيًا.",
 };
 
 export const translations: Record<Language, Dict> = { en, ar };

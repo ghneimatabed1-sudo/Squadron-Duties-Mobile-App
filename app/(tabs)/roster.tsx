@@ -93,6 +93,7 @@ function PersonRow({ id }: { id: string }) {
   const { colors, row, textAlign } = useUI();
   const app = useApp();
   const t = app.t;
+  const [renaming, setRenaming] = useState(false);
   const person = app.state.people.find((p) => p.id === id);
   if (!person) return null;
 
@@ -196,6 +197,11 @@ function PersonRow({ id }: { id: string }) {
           <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.card }} />
         </Pressable>
         <IconButton
+          icon="edit-2"
+          size={16}
+          onPress={() => setRenaming(true)}
+        />
+        <IconButton
           icon="trash-2"
           size={16}
           onPress={confirmDelete}
@@ -203,7 +209,62 @@ function PersonRow({ id }: { id: string }) {
           bg={colors.destructive + "14"}
         />
       </View>
+      {renaming ? (
+        <RenamePersonModal
+          id={id}
+          initialName={person.name}
+          onClose={() => setRenaming(false)}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+function RenamePersonModal({
+  id,
+  initialName,
+  onClose,
+}: {
+  id: string;
+  initialName: string;
+  onClose: () => void;
+}) {
+  const { colors, row } = useUI();
+  const app = useApp();
+  const insets = useSafeAreaInsets();
+  const t = app.t;
+  const [name, setName] = useState(initialName);
+
+  const submit = () => {
+    if (!name.trim()) return;
+    app.renamePerson(id, name);
+    onClose();
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View
+        style={[
+          styles.sheet,
+          { backgroundColor: colors.background, paddingBottom: insets.bottom + 16, borderColor: colors.border },
+        ]}
+      >
+        <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <Text style={{ fontFamily: font.bold, fontSize: 18, color: colors.foreground }}>
+            {t("rename_person")}
+          </Text>
+          <IconButton icon="x" onPress={onClose} />
+        </View>
+        <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, lineHeight: 18, marginBottom: 14 }}>
+          {t("rename_person_hint")}
+        </Text>
+        <View style={{ gap: 14 }}>
+          <Field label={t("person_name")} value={name} onChangeText={setName} placeholder={t("name_placeholder")} />
+          <Btn label={t("save")} icon="check" onPress={submit} disabled={!name.trim()} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
