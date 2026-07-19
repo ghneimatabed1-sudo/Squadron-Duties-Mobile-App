@@ -87,7 +87,7 @@ export function computeQueueStats(
   const joinById = new Map<string, string | undefined>();
   for (const p of people) {
     // Single-cover people are outside the rotation entirely.
-    if (p.role === role && p.active && !p.singleCover) {
+    if (p.role === role && p.active && !p.singleCover && !p.availabilityOnly) {
       map.set(p.id, {
         personId: p.id,
         // Joining/returning puts you at the back of every line as of that day.
@@ -248,7 +248,7 @@ export function recommendForSlot(
   };
 
   const list: Candidate[] = people
-    .filter((p) => p.role === role)
+    .filter((p) => p.role === role && !p.availabilityOnly)
     .map((p) => {
       const q = stats.get(p.id);
       const lastDutyDate = q
@@ -330,7 +330,7 @@ export function recommendForSpecial(
   }
 
   const list: Candidate[] = people
-    .filter((p) => p.role === role)
+    .filter((p) => p.role === role && !p.availabilityOnly)
     .map((p) => ({
       person: p,
       waitDays: null,
@@ -389,6 +389,7 @@ export function recommendForLocation(
       (p) =>
         p.active &&
         !p.singleCover &&
+        !p.availabilityOnly &&
         !(excludedIds && excludedIds.has(p.id)),
     )
     .map((p) => ({
@@ -450,7 +451,7 @@ export function recommendForLocationCrew(
     );
 
   const list: Candidate[] = people
-    .filter((p) => p.role === role && !siblingExcluded.has(p.id))
+    .filter((p) => p.role === role && !p.availabilityOnly && !siblingExcluded.has(p.id))
     .map((p) => {
       let eligible = true;
       let reasonKey: Candidate["reasonKey"];
@@ -527,7 +528,7 @@ export function computeTotals(
   }
   const map = new Map<string, Row>();
   for (const p of people) {
-    if (p.role === role && p.active && !p.singleCover) {
+    if (p.role === role && p.active && !p.singleCover && !p.availabilityOnly) {
       map.set(p.id, { duty: 0, weekendDuty: 0, standby: 0, special: 0, location: 0 });
     }
   }
@@ -566,7 +567,7 @@ export function computeTotals(
   const avg = map.size > 0 ? sum / map.size : 0;
 
   return people
-    .filter((p) => p.role === role && p.active && !p.singleCover)
+    .filter((p) => p.role === role && p.active && !p.singleCover && !p.availabilityOnly)
     .map((p) => {
       const r = map.get(p.id)!;
       const total = r.duty + r.standby + r.special + r.location;

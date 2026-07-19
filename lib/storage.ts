@@ -69,6 +69,7 @@ function parsePerson(v: unknown): Person | null {
     role: v.role,
     active: typeof v.active === "boolean" ? v.active : true,
     singleCover: v.singleCover === true,
+    availabilityOnly: v.availabilityOnly === true,
     activeSince: isValidISO(v.activeSince) ? v.activeSince : undefined,
     createdAt: isNum(v.createdAt) ? v.createdAt : Date.now(),
   };
@@ -381,6 +382,16 @@ export function normalize(obj: unknown): AppState {
       availabilityCodes.push(c);
       codeKeys.add(codeKey(c.code));
     }
+  }
+  // Migration: older installs predate the standard "AL" (annual leave) code.
+  if (!codeKeys.has(codeKey("AL"))) {
+    availabilityCodes.push({
+      id: uid(),
+      code: "AL",
+      label: "Annual leave",
+      countsAsDayOff: true,
+    });
+    codeKeys.add(codeKey("AL"));
   }
 
   // Availability marks: one per (person, date); ensure every referenced code

@@ -45,7 +45,7 @@ export default function TrackingScreen() {
   const t = app.t;
 
   const validRange = isValidISO(from) && isValidISO(to) && from <= to;
-  const hasPeople = app.state.people.some((p) => p.active);
+  const hasPeople = app.state.people.some((p) => p.active && !p.availabilityOnly);
   const captains = validRange ? app.totals(from, to, "captain") : [];
   const copilots = validRange ? app.totals(from, to, "copilot") : [];
 

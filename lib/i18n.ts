@@ -334,6 +334,16 @@ const en: Dict = {
   rename_person: "Rename",
   rename_person_hint:
     "The new name applies everywhere instantly — every duty, standby, event, location and availability record follows the person automatically.",
+
+  avail_only_person: "Availability only",
+  avail_extra_people: "Extra names (availability only)",
+  avail_extra_people_hint:
+    "Names tracked only on the availability board. They never appear in the roster and are never picked for duties.",
+  avail_add_extra_person: "Add name",
+  avail_range_toggle: "Mark a period (from this date to an end date)",
+  avail_range_hint:
+    "The code you pick below will be applied to every day from the selected date through the end date — ideal for annual leave (AL).",
+  avail_range_end: "Until (inclusive)",
 };
 
 const ar: Dict = {
@@ -664,6 +674,16 @@ const ar: Dict = {
   rename_person: "إعادة تسمية",
   rename_person_hint:
     "الاسم الجديد يطبق في كل مكان فورًا — كل مناوبة واستعداد ومناسبة وموقع وسجل جاهزية يتبع الشخص تلقائيًا.",
+
+  avail_only_person: "جاهزية فقط",
+  avail_extra_people: "أسماء إضافية (جاهزية فقط)",
+  avail_extra_people_hint:
+    "أسماء تتابع في لوحة الجاهزية فقط. لا تظهر في التشكيل ولا تختار للمناوبات أبدًا.",
+  avail_add_extra_person: "إضافة اسم",
+  avail_range_toggle: "تحديد فترة (من هذا التاريخ حتى تاريخ نهاية)",
+  avail_range_hint:
+    "الرمز الذي تختاره أدناه سيطبق على كل يوم من التاريخ المحدد حتى تاريخ النهاية — مثالي للإجازة السنوية (AL).",
+  avail_range_end: "حتى (شامل)",
 };
 
 export const translations: Record<Language, Dict> = { en, ar };

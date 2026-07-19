@@ -55,7 +55,7 @@ export default function DutiesScreen() {
 
   if (!app.ready) return <Loading />;
   const t = app.t;
-  const hasPeople = app.state.people.some((p) => p.active);
+  const hasPeople = app.state.people.some((p) => p.active && !p.availabilityOnly);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

@@ -185,7 +185,7 @@ function DayBoard() {
                     {p.name}
                   </Text>
                   <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, textAlign }}>
-                    {t(p.role)}
+                    {p.availabilityOnly ? t("avail_only_person") : t(p.role)}
                     {meaning && meaning !== code ? ` · ${meaning}` : ""}
                   </Text>
                 </View>
@@ -222,6 +222,8 @@ function CodePickerSheet({
   const insets = useSafeAreaInsets();
   const t = app.t;
   const [custom, setCustom] = useState("");
+  const [rangeMode, setRangeMode] = useState(false);
+  const [endDate, setEndDate] = useState(date);
   const current = app.getAvailability(date, person.id);
 
   // Most-used codes first so frequent ones are one tap away.
@@ -237,7 +239,11 @@ function CodePickerSheet({
   }, [app.state.availability, app.state.availabilityCodes]);
 
   const pick = (code: string | null) => {
-    app.setAvailability(date, person.id, code);
+    if (rangeMode) {
+      app.setAvailabilityRange(person.id, date, endDate, code);
+    } else {
+      app.setAvailability(date, person.id, code);
+    }
     onClose();
   };
 
@@ -258,6 +264,36 @@ function CodePickerSheet({
           {fmtDate(app, date)}
         </Text>
         <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
+          <Pressable
+            onPress={() => {
+              tap();
+              setRangeMode((v) => !v);
+            }}
+            style={{ flexDirection: row, alignItems: "center", gap: 8, marginBottom: 12 }}
+          >
+            <Feather
+              name={rangeMode ? "check-square" : "square"}
+              size={17}
+              color={rangeMode ? colors.primary : colors.mutedForeground}
+            />
+            <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.foreground }}>
+              {t("avail_range_toggle")}
+            </Text>
+          </Pressable>
+          {rangeMode ? (
+            <>
+              <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, marginBottom: 8, lineHeight: 17, textAlign }}>
+                {t("avail_range_hint")}
+              </Text>
+              <DateField
+                label={t("avail_range_end")}
+                value={endDate}
+                onChange={setEndDate}
+                formatDate={(iso) => fmtDate(app, iso)}
+              />
+              <View style={{ height: 12 }} />
+            </>
+          ) : null}
           <SectionLabel text={t("avail_pick_code")} />
           <View style={{ flexDirection: row, flexWrap: "wrap", gap: 8 }}>
             {codes.map((c) => {
@@ -316,7 +352,7 @@ function CodePickerSheet({
             onPress={() => pick(custom)}
             disabled={!sanitizeCode(custom)}
           />
-          {current ? (
+          {current || rangeMode ? (
             <>
               <View style={{ height: 8 }} />
               <Btn label={t("avail_clear_mark")} icon="x" variant="ghost" onPress={() => pick(null)} />
@@ -520,7 +556,7 @@ function SetupView() {
                 {p.name}
               </Text>
               <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, textAlign }}>
-                {t(p.role)}
+                {p.availabilityOnly ? t("avail_only_person") : t(p.role)}
               </Text>
             </View>
             <IconButton icon="arrow-up" size={16} onPress={() => app.moveRosterOrder(p.id, -1)} />
@@ -528,6 +564,18 @@ function SetupView() {
           </View>
         </Card>
       ))}
+
+      <View style={{ height: 18 }} />
+      <SectionLabel text={t("avail_extra_people")} />
+      <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, marginBottom: 10, lineHeight: 18, textAlign }}>
+        {t("avail_extra_people_hint")}
+      </Text>
+      {app.orderedPeople
+        .filter((p) => p.availabilityOnly)
+        .map((p) => (
+          <ExtraPersonRow key={p.id} id={p.id} />
+        ))}
+      <AddExtraPersonCard />
 
       <View style={{ height: 18 }} />
       <SectionLabel text={t("avail_codes")} />
@@ -539,6 +587,85 @@ function SetupView() {
       ))}
       <AddCodeCard />
     </View>
+  );
+}
+
+function ExtraPersonRow({ id }: { id: string }) {
+  const { colors, row, textAlign } = useUI();
+  const app = useApp();
+  const t = app.t;
+  const person = app.state.people.find((p) => p.id === id);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(person?.name ?? "");
+  if (!person) return null;
+
+  const confirmDelete = () => {
+    if (Platform.OS === "web") {
+      // eslint-disable-next-line no-alert
+      if (window.confirm(t("delete_person_confirm"))) app.deletePerson(id);
+      return;
+    }
+    Alert.alert(person.name, t("delete_person_confirm"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("delete"), style: "destructive", onPress: () => app.deletePerson(id) },
+    ]);
+  };
+
+  return (
+    <Card style={{ marginBottom: 8 }}>
+      <View style={{ flexDirection: row, alignItems: "center", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          {editing ? (
+            <Field label="" value={name} onChangeText={setName} placeholder={t("person_name")} />
+          ) : (
+            <Text style={{ fontFamily: font.semibold, fontSize: 15, color: colors.foreground, textAlign }}>
+              {person.name}
+            </Text>
+          )}
+        </View>
+        <IconButton
+          icon={editing ? "check" : "edit-2"}
+          size={15}
+          onPress={() => {
+            if (editing) {
+              if (name.trim()) app.renamePerson(id, name);
+              setEditing(false);
+            } else {
+              setName(person.name);
+              setEditing(true);
+            }
+          }}
+        />
+        <IconButton icon="trash-2" size={15} onPress={confirmDelete} color={colors.destructive} bg={colors.destructive + "14"} />
+      </View>
+    </Card>
+  );
+}
+
+function AddExtraPersonCard() {
+  const app = useApp();
+  const t = app.t;
+  const [name, setName] = useState("");
+
+  return (
+    <Card style={{ marginTop: 4, gap: 10 }}>
+      <Field
+        label={t("person_name")}
+        value={name}
+        onChangeText={setName}
+        placeholder={t("name_placeholder")}
+      />
+      <Btn
+        label={t("avail_add_extra_person")}
+        icon="user-plus"
+        variant="secondary"
+        onPress={() => {
+          app.addAvailabilityPerson(name);
+          setName("");
+        }}
+        disabled={!name.trim()}
+      />
+    </Card>
   );
 }
 
@@ -966,7 +1093,9 @@ function RecommendSheet({ onClose }: { onClose: () => void }) {
         <ScrollView style={{ maxHeight: 480 }}>
           <SectionLabel text={t("avail_select_people")} />
           {(["captain", "copilot"] as const).map((role) => {
-            const group = app.orderedPeople.filter((p) => p.role === role);
+            const group = app.orderedPeople.filter(
+              (p) => p.role === role && !p.availabilityOnly,
+            );
             if (group.length === 0) return null;
             return (
               <View key={role} style={{ marginBottom: 10 }}>
@@ -989,6 +1118,30 @@ function RecommendSheet({ onClose }: { onClose: () => void }) {
               </View>
             );
           })}
+          {(() => {
+            const extras = app.orderedPeople.filter((p) => p.availabilityOnly);
+            if (extras.length === 0) return null;
+            return (
+              <View style={{ marginBottom: 10 }}>
+                <Text
+                  style={{
+                    fontFamily: font.bold,
+                    fontSize: 12.5,
+                    color: colors.mutedForeground,
+                    marginBottom: 6,
+                    textAlign,
+                  }}
+                >
+                  {t("avail_extra_people")}
+                </Text>
+                <View style={{ flexDirection: row, flexWrap: "wrap", gap: 8 }}>
+                  {extras.map((p) => (
+                    <Toggle key={p.id} label={p.name} on={selected.has(p.id)} onPress={() => toggle(p.id)} />
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
           <View style={{ height: 2 }} />
           <DateField
             label={t("avail_for_date")}

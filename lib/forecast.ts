@@ -156,7 +156,7 @@ export function locationQueue(state: AppState, role: SlotRole): LocationQueueRow
   }
 
   return state.people
-    .filter((p) => p.role === role && p.active && !p.singleCover)
+    .filter((p) => p.role === role && p.active && !p.singleCover && !p.availabilityOnly)
     .map((p) => ({
       person: p,
       count: counts.get(p.id) ?? 0,

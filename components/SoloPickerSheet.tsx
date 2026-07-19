@@ -30,7 +30,7 @@ export function SoloPickerSheet({
 
   const visible = date !== null;
   const current = date ? app.getSolo(date) : undefined;
-  const people = app.state.people.filter((p) => p.active);
+  const people = app.state.people.filter((p) => p.active && !p.availabilityOnly);
 
   const choose = (personId: string | null) => {
     if (!date) return;

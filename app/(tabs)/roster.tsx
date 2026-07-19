@@ -38,9 +38,10 @@ export default function RosterScreen() {
   if (!app.ready) return <Loading />;
   const t = app.t;
 
-  const captains = app.state.people.filter((p) => p.role === "captain");
-  const copilots = app.state.people.filter((p) => p.role === "copilot");
-  const empty = app.state.people.length === 0;
+  const rosterPeople = app.state.people.filter((p) => !p.availabilityOnly);
+  const captains = rosterPeople.filter((p) => p.role === "captain");
+  const copilots = rosterPeople.filter((p) => p.role === "copilot");
+  const empty = rosterPeople.length === 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

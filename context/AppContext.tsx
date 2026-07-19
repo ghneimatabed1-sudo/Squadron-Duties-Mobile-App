@@ -18,7 +18,7 @@ import {
   parseAvailabilityExport,
   sanitizeCode,
 } from "@/lib/availability";
-import { addDays, eachDay, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
+import { addDays, eachDay, isValidISO, startOfWeek, todayISO, weekDates, weekendDates } from "@/lib/dates";
 import { buildDemoState } from "@/lib/demo";
 import {
   Candidate,
@@ -78,6 +78,7 @@ interface AppContextValue {
   // people
   addPerson: (name: string, role: SlotRole, singleCover?: boolean) => void;
   renamePerson: (id: string, name: string) => void;
+  addAvailabilityPerson: (name: string) => void;
   setPersonActive: (id: string, active: boolean) => void;
   setPersonSingleCover: (id: string, singleCover: boolean) => void;
   deletePerson: (id: string) => void;
@@ -184,6 +185,12 @@ interface AppContextValue {
   orderedPeople: Person[];
   getAvailability: (date: string, personId: string) => string | undefined;
   setAvailability: (date: string, personId: string, code: string | null) => void;
+  setAvailabilityRange: (
+    personId: string,
+    startDate: string,
+    endDate: string,
+    code: string | null,
+  ) => void;
   updateAvailabilityCode: (
     id: string,
     partial: Partial<Pick<AvailabilityCode, "code" | "label" | "countsAsDayOff">>,
@@ -274,6 +281,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+  // An availability-only name: tracked on the availability board but never in
+  // the roster, the rotation queue, or fairness. Stored with a placeholder
+  // role (never used anywhere for these people).
+  const addAvailabilityPerson = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setState((s) => ({
+      ...s,
+      people: [
+        ...s.people,
+        {
+          id: uid(),
+          name: trimmed,
+          role: "copilot" as SlotRole,
+          active: true,
+          availabilityOnly: true,
+          createdAt: Date.now(),
+        },
+      ],
+    }));
+  }, []);
   // Renaming is safe everywhere: every duty, standby, special, location,
   // availability mark and export references the person by ID, so the new name
   // shows up instantly across the whole app.
@@ -365,6 +393,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           availability: [
             ...rest,
             { id: uid(), date, personId, code: r.code },
+          ],
+        };
+      });
+    },
+    [],
+  );
+
+  // Mark a whole period (e.g. annual leave) in one go: one entry per day from
+  // startDate to endDate inclusive. code=null clears the period instead.
+  const setAvailabilityRange = useCallback(
+    (personId: string, startDate: string, endDate: string, code: string | null) => {
+      if (!isValidISO(startDate) || !isValidISO(endDate)) return;
+      const from = startDate <= endDate ? startDate : endDate;
+      const to = startDate <= endDate ? endDate : startDate;
+      const days: string[] = [];
+      for (let d = from; d <= to && days.length < 400; d = addDays(d, 1)) {
+        days.push(d);
+      }
+      const inRange = new Set(days);
+      setState((s) => {
+        const rest = s.availability.filter(
+          (e) => !(e.personId === personId && inRange.has(e.date)),
+        );
+        if (!code || !sanitizeCode(code)) {
+          return { ...s, availability: rest };
+        }
+        const r = ensureCode(s.availabilityCodes, code);
+        return {
+          ...s,
+          availabilityCodes: r.codes,
+          availability: [
+            ...rest,
+            ...days.map((date) => ({ id: uid(), date, personId, code: r.code })),
           ],
         };
       });
@@ -1067,6 +1128,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateSettings,
     addPerson,
     renamePerson,
+    addAvailabilityPerson,
     setPersonActive,
     setPersonSingleCover,
     deletePerson,
@@ -1105,6 +1167,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     orderedPeople,
     getAvailability,
     setAvailability,
+    setAvailabilityRange,
     updateAvailabilityCode,
     addAvailabilityCode,
     removeAvailabilityCode,

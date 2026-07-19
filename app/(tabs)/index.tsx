@@ -58,7 +58,7 @@ export default function ScheduleScreen() {
     return `${app.weekday(dayOfWeek(iso))} · ${d.getDate()}/${d.getMonth() + 1}`;
   };
   const rangeLabel = `${formatShort(dates[0])} – ${formatShort(dates[6])}`;
-  const hasPeople = app.state.people.length > 0;
+  const hasPeople = app.state.people.some((p) => !p.availabilityOnly);
   const heading = app.settings.squadronName.trim() || t("roster_title");
 
   const shareRoster = async (weeks: number) => {

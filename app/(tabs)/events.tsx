@@ -335,7 +335,7 @@ function LocationSection() {
 
   const sorted = [...app.state.locations].sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
   const defs = app.state.locationDefs;
-  const people = app.state.people;
+  const people = app.state.people.filter((p) => !p.availabilityOnly);
 
   const addDef = () => {
     if (!newLoc.trim()) return;

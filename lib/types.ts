@@ -15,6 +15,13 @@ export interface Person {
    */
   singleCover?: boolean;
   /**
+   * An "availability only" name: someone tracked on the availability board
+   * (statuses, leave, exports) but who is NOT part of the squadron roster —
+   * never shown in the Roster tab, never picked by the rotation queue, and
+   * never counted for fairness. Just a name with availability marks.
+   */
+  availabilityOnly?: boolean;
+  /**
    * ISO date the person joined or last returned from being away. Used to give
    * a newcomer/returner a fair, balanced start: their duties are measured only
    * from this date, so they are never treated as "owed" a pile of catch-up
@@ -108,6 +115,7 @@ export const DEFAULT_AVAILABILITY_CODES: Omit<AvailabilityCode, "id">[] = [
   { code: "SL", label: "Sick leave", countsAsDayOff: false },
   { code: "CR", label: "Crew rest", countsAsDayOff: false },
   { code: "L", label: "Leave / day off", countsAsDayOff: true },
+  { code: "AL", label: "Annual leave", countsAsDayOff: true },
   { code: "ML", label: "Morning leave", countsAsDayOff: true },
 ];
 
