@@ -1,13 +1,36 @@
-import { diffDays, eachDay, isWeekend } from "./dates";
+import { dayOfWeek, diffDays, eachDay, isWeekend } from "./dates";
 import {
   Assignment,
   CrewKind,
+  FixedDayRule,
   LocationAssignment,
   Person,
   Settings,
   SlotRole,
   SpecialAssignment,
 } from "./types";
+
+/**
+ * Is this person allowed to take a NORMAL rotation slot on `date`, given the
+ * fixed-day rules? A person with any `onlyFixed` rule is out of the general
+ * rotation: they may only serve on their fixed weekday(s) — plus the weekend
+ * rotation when one of their rules says `includeWeekends`.
+ */
+export function allowedByFixedRules(
+  fixedDays: FixedDayRule[] | undefined,
+  personId: string,
+  date: string,
+): boolean {
+  if (!fixedDays || fixedDays.length === 0) return true;
+  const mine = fixedDays.filter((f) => f.personId === personId);
+  if (!mine.some((f) => f.onlyFixed)) return true;
+  const wd = dayOfWeek(date);
+  if (mine.some((f) => f.weekday === wd)) return true;
+  if (isWeekend(date) && mine.some((f) => f.onlyFixed && f.includeWeekends)) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * ROTATION QUEUE ENGINE
@@ -187,7 +210,8 @@ export interface Candidate {
     | "reason_inactive"
     | "reason_double_booked"
     | "reason_busy"
-    | "reason_location_excluded";
+    | "reason_location_excluded"
+    | "reason_fixed_only";
   eventCount?: number;
   /** True for single-cover people: selectable manually, but never auto-filled. */
   singleCover?: boolean;
@@ -207,6 +231,7 @@ export function recommendForSlot(
   role: SlotRole,
   date: string,
   crew: CrewKind = "duty",
+  fixedDays?: FixedDayRule[],
 ): Candidate[] {
   const stats = computeQueueStats(
     people, assignments, specials, locations, role, date,
@@ -276,6 +301,10 @@ export function recommendForSlot(
       } else if (busySameDay.has(p.id)) {
         eligible = false;
         reasonKey = "reason_busy";
+      } else if (!allowedByFixedRules(fixedDays, p.id, date)) {
+        // Fixed-day-only people never rotate onto other days automatically.
+        eligible = false;
+        reasonKey = "reason_fixed_only";
       }
       return {
         person: p,

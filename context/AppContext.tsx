@@ -122,6 +122,15 @@ interface AppContextValue {
   getSolo: (date: string) => SoloAssignment | undefined;
   setSolo: (date: string, personId: string | null) => void;
 
+  // recurring fixed-weekday duty rules
+  addFixedDay: (
+    personId: string,
+    weekday: number,
+    onlyFixed: boolean,
+    includeWeekends: boolean,
+  ) => void;
+  removeFixedDay: (id: string) => void;
+
   // events
   addSpecial: (
     eventKey: string,
@@ -359,6 +368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         excluded: d.excluded.filter((pid) => pid !== id),
       })),
       solos: s.solos.filter((so) => so.personId !== id),
+      fixedDays: s.fixedDays.filter((f) => f.personId !== id),
       availability: s.availability.filter((e) => e.personId !== id),
       rosterOrder: s.rosterOrder.filter((pid) => pid !== id),
     }));
@@ -725,6 +735,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // ---- recurring fixed-weekday duty rules ----
+  const addFixedDay = useCallback(
+    (
+      personId: string,
+      weekday: number,
+      onlyFixed: boolean,
+      includeWeekends: boolean,
+    ) => {
+      const wd = Math.floor(weekday);
+      if (wd < 0 || wd > 6) return;
+      setState((s) => {
+        if (!s.people.some((p) => p.id === personId && !p.availabilityOnly)) {
+          return s;
+        }
+        // One rule per (person, weekday): re-adding replaces the options.
+        const rest = s.fixedDays.filter(
+          (f) => !(f.personId === personId && f.weekday === wd),
+        );
+        return {
+          ...s,
+          fixedDays: [
+            ...rest,
+            {
+              id: uid(),
+              personId,
+              weekday: wd,
+              onlyFixed: onlyFixed || undefined,
+              includeWeekends: (onlyFixed && includeWeekends) || undefined,
+            },
+          ],
+        };
+      });
+    },
+    [],
+  );
+  const removeFixedDay = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      fixedDays: s.fixedDays.filter((f) => f.id !== id),
+    }));
+  }, []);
+
   const generateWeek = useCallback((weekStart: string, weeks: number = 1) => {
     setState((s) => {
       const dates: string[] = [];
@@ -740,6 +792,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           settings: s.settings,
           splitWeekends: s.splitWeekends,
           extraCrews: s.extraCrews,
+          fixedDays: s.fixedDays,
         },
         dates,
       );
@@ -762,6 +815,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           settings: state.settings,
           splitWeekends: state.splitWeekends,
           extraCrews: state.extraCrews,
+          fixedDays: state.fixedDays,
         },
         dates,
       );
@@ -815,6 +869,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           settings: s.settings,
           splitWeekends: s.splitWeekends,
           extraCrews: s.extraCrews,
+          fixedDays: s.fixedDays,
         },
         dates,
       ),
@@ -933,6 +988,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 settings: s.settings,
                 splitWeekends: s.splitWeekends,
                 extraCrews: s.extraCrews,
+                fixedDays: s.fixedDays,
               },
               dates,
             )
@@ -1031,6 +1087,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Pass the crew kind so the queue matches auto-fill exactly: duty
         // slots use the weekday/weekend queue, standby uses its own queue.
         crew,
+        state.fixedDays,
       ),
     [
       state.people,
@@ -1038,6 +1095,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       state.specials,
       state.locations,
       state.settings,
+      state.fixedDays,
     ],
   );
 
@@ -1147,6 +1205,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWeekendSplit,
     getSolo,
     setSolo,
+    addFixedDay,
+    removeFixedDay,
     addSpecial,
     removeSpecial,
     addLocation,

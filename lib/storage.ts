@@ -9,6 +9,7 @@ import {
   Assignment,
   CrewKind,
   DEFAULT_SETTINGS,
+  FixedDayRule,
   Language,
   LocationAssignment,
   LocationDef,
@@ -188,6 +189,30 @@ function parseSolo(
   return { id: v.id, date: v.date, personId: v.personId };
 }
 
+function parseFixedDay(
+  v: unknown,
+  peopleIds: Set<string>,
+): FixedDayRule | null {
+  if (!isObj(v)) return null;
+  if (
+    !isNonEmptyStr(v.id) ||
+    !isNonEmptyStr(v.personId) ||
+    !peopleIds.has(v.personId) ||
+    !isNum(v.weekday)
+  ) {
+    return null;
+  }
+  const weekday = Math.floor(v.weekday);
+  if (weekday < 0 || weekday > 6) return null;
+  return {
+    id: v.id,
+    personId: v.personId,
+    weekday,
+    onlyFixed: v.onlyFixed === true,
+    includeWeekends: v.includeWeekends === true,
+  };
+}
+
 function parseAvailabilityEntry(
   v: unknown,
   peopleIds: Set<string>,
@@ -337,6 +362,20 @@ export function normalize(obj: unknown): AppState {
     }
   }
 
+  // Fixed-day rules: at most one per (person, weekday).
+  const fixedDays: FixedDayRule[] = [];
+  const fixedKeys = new Set<string>();
+  if (Array.isArray(obj.fixedDays)) {
+    for (const raw of obj.fixedDays) {
+      const f = parseFixedDay(raw, peopleIds);
+      if (!f) continue;
+      const key = `${f.personId}|${f.weekday}`;
+      if (fixedKeys.has(key)) continue;
+      fixedKeys.add(key);
+      fixedDays.push(f);
+    }
+  }
+
   const splitWeekends: string[] = [];
   const seenWeekends = new Set<string>();
   if (Array.isArray(obj.splitWeekends)) {
@@ -436,6 +475,7 @@ export function normalize(obj: unknown): AppState {
     locations,
     locationDefs,
     solos,
+    fixedDays,
     splitWeekends,
     extraCrews,
     availability,

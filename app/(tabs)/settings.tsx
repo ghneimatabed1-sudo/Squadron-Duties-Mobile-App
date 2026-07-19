@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { safeFileBase } from "@/lib/filenames";
+import { weekdayNames } from "@/lib/i18n";
 import { exportToFile, importFromFile } from "@/lib/io";
 
 export default function SettingsScreen() {
@@ -153,6 +154,10 @@ export default function SettingsScreen() {
         </Card>
 
         <View style={{ height: 20 }} />
+        <SectionLabel text={t("fixed_days_title")} />
+        <FixedDaysSection />
+
+        <View style={{ height: 20 }} />
         <SectionLabel text={t("data_management")} />
         <Card style={{ gap: 12 }}>
           <Text style={{ fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, textAlign, lineHeight: 19 }}>
@@ -178,6 +183,202 @@ export default function SettingsScreen() {
         </Card>
       </Screen>
     </View>
+  );
+}
+
+function FixedDaysSection() {
+  const { colors, row, textAlign } = useUI();
+  const app = useApp();
+  const t = app.t;
+  const [adding, setAdding] = useState(false);
+  const [personId, setPersonId] = useState<string | null>(null);
+  const [weekday, setWeekday] = useState<number | null>(null);
+  const [onlyFixed, setOnlyFixed] = useState(false);
+  const [inclWeekends, setInclWeekends] = useState(false);
+
+  const people = app.state.people.filter(
+    (p) => p.active && !p.availabilityOnly,
+  );
+  const names = weekdayNames[app.lang];
+  // Week runs Monday -> Sunday in this app.
+  const weekOrder = [1, 2, 3, 4, 5, 6, 0];
+  const rules = [...app.state.fixedDays].sort(
+    (a, b) => weekOrder.indexOf(a.weekday) - weekOrder.indexOf(b.weekday),
+  );
+  const nameOf = (id: string) =>
+    app.state.people.find((p) => p.id === id)?.name ?? "?";
+
+  const reset = () => {
+    setAdding(false);
+    setPersonId(null);
+    setWeekday(null);
+    setOnlyFixed(false);
+    setInclWeekends(false);
+  };
+
+  const save = () => {
+    if (!personId || weekday === null) return;
+    app.addFixedDay(personId, weekday, onlyFixed, inclWeekends);
+    reset();
+  };
+
+  const chip = (on: boolean) => ({
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: on ? colors.primary : colors.muted,
+  });
+  const chipText = (on: boolean) => ({
+    fontFamily: font.medium,
+    fontSize: 13,
+    color: on ? colors.primaryForeground : colors.foreground,
+  });
+
+  return (
+    <Card style={{ gap: 12 }}>
+      <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, lineHeight: 18, textAlign }}>
+        {t("fixed_days_hint")}
+      </Text>
+
+      {rules.length === 0 && !adding ? (
+        <Text style={{ fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, textAlign }}>
+          {t("fixed_day_none")}
+        </Text>
+      ) : null}
+
+      {rules.map((r) => (
+        <View
+          key={r.id}
+          style={{ flexDirection: row, alignItems: "center", gap: 10, backgroundColor: colors.muted, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: font.bold, fontSize: 14, color: colors.foreground, textAlign }}>
+              {nameOf(r.personId)}
+            </Text>
+            <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, marginTop: 2, textAlign }}>
+              {t("fixed_day_every")} {names[r.weekday]}
+              {r.onlyFixed ? ` · ${t("fixed_day_out_of_rotation")}` : ""}
+              {r.onlyFixed && r.includeWeekends ? ` ${t("fixed_day_with_weekends")}` : ""}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              tap();
+              app.removeFixedDay(r.id);
+            }}
+            hitSlop={8}
+          >
+            <Feather name="trash-2" size={17} color={colors.destructive} />
+          </Pressable>
+        </View>
+      ))}
+
+      {adding ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontFamily: font.bold, fontSize: 12.5, color: colors.mutedForeground, textAlign }}>
+            {t("fixed_day_person")}
+          </Text>
+          <View style={{ flexDirection: row, flexWrap: "wrap", gap: 8 }}>
+            {people.map((p) => (
+              <Pressable
+                key={p.id}
+                onPress={() => {
+                  tap();
+                  setPersonId(p.id);
+                }}
+                style={chip(personId === p.id)}
+              >
+                <Text style={chipText(personId === p.id)}>{p.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={{ fontFamily: font.bold, fontSize: 12.5, color: colors.mutedForeground, textAlign }}>
+            {t("fixed_day_weekday")}
+          </Text>
+          <View style={{ flexDirection: row, flexWrap: "wrap", gap: 8 }}>
+            {weekOrder.map((wd) => (
+              <Pressable
+                key={wd}
+                onPress={() => {
+                  tap();
+                  setWeekday(wd);
+                }}
+                style={chip(weekday === wd)}
+              >
+                <Text style={chipText(weekday === wd)}>{names[wd]}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            onPress={() => {
+              tap();
+              setOnlyFixed((v) => !v);
+            }}
+            style={{ flexDirection: row, alignItems: "center", gap: 10 }}
+          >
+            <Feather
+              name={onlyFixed ? "check-square" : "square"}
+              size={19}
+              color={onlyFixed ? colors.primary : colors.mutedForeground}
+            />
+            <Text style={{ flex: 1, fontFamily: font.medium, fontSize: 13.5, color: colors.foreground, textAlign }}>
+              {t("fixed_day_only_toggle")}
+            </Text>
+          </Pressable>
+          {onlyFixed ? (
+            <>
+              <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, textAlign }}>
+                {t("fixed_day_only_hint")}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  tap();
+                  setInclWeekends((v) => !v);
+                }}
+                style={{ flexDirection: row, alignItems: "center", gap: 10 }}
+              >
+                <Feather
+                  name={inclWeekends ? "check-square" : "square"}
+                  size={19}
+                  color={inclWeekends ? colors.primary : colors.mutedForeground}
+                />
+                <Text style={{ flex: 1, fontFamily: font.medium, fontSize: 13.5, color: colors.foreground, textAlign }}>
+                  {t("fixed_day_weekends_toggle")}
+                </Text>
+              </Pressable>
+              {inclWeekends ? (
+                <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, textAlign }}>
+                  {t("fixed_day_weekends_hint")}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+          <View style={{ flexDirection: row, gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Btn label={t("cancel")} variant="secondary" onPress={reset} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Btn
+                label={t("confirm")}
+                onPress={save}
+                disabled={!personId || weekday === null}
+              />
+            </View>
+          </View>
+        </View>
+      ) : (
+        <Btn
+          label={t("fixed_day_add")}
+          icon="plus"
+          variant="secondary"
+          onPress={() => setAdding(true)}
+        />
+      )}
+
+      <Text style={{ fontFamily: font.regular, fontSize: 11.5, color: colors.mutedForeground, lineHeight: 16, textAlign }}>
+        {t("fixed_day_applies_note")}
+      </Text>
+    </Card>
   );
 }
 

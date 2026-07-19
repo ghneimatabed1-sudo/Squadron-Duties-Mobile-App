@@ -1,8 +1,9 @@
-import { isWeekend, weekendDates } from "./dates";
+import { dayOfWeek, isWeekend, weekendDates } from "./dates";
 import { recommendForSlot } from "./fairness";
 import {
   Assignment,
   CrewKind,
+  FixedDayRule,
   LocationAssignment,
   Person,
   Settings,
@@ -69,6 +70,8 @@ export interface AutoFillInput {
   splitWeekends: string[];
   /** Per-day count of extra duty crews (date -> n). Missing = the usual 1 crew. */
   extraCrews?: Record<string, number>;
+  /** Recurring fixed-weekday duty rules — applied before the rotation fill. */
+  fixedDays?: FixedDayRule[];
 }
 
 /**
@@ -100,8 +103,59 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
     );
   const splitSet = new Set(input.splitWeekends);
   const extraCrews = input.extraCrews ?? {};
+  const fixedDays = input.fixedDays ?? [];
   const roles: SlotRole[] = ["captain", "copilot"];
   const working = [...input.assignments];
+
+  // PRE-PASS — recurring fixed days: before the rotation fills anything, write
+  // each fixed person into their weekday's base duty slot (their own role).
+  // Existing (manual) occupants are respected; the person must be free and not
+  // committed elsewhere. On a BLOCK weekend the fixed person takes the whole
+  // block, exactly like any other weekend crew.
+  if (fixedDays.length > 0) {
+    const byId = new Map(people.map((p) => [p.id, p]));
+    for (const date of dates) {
+      const block = isWeekend(date) && !splitSet.has(weekendDates(date)[0]);
+      const targetDates = block
+        ? weekendDates(date).filter((d) => dateSet.has(d))
+        : [date];
+      if (block && date !== targetDates[0]) continue;
+      const wd = dayOfWeek(date);
+      const ruleMatches = block
+        ? fixedDays.filter((f) =>
+            targetDates.some((d) => dayOfWeek(d) === f.weekday),
+          )
+        : fixedDays.filter((f) => f.weekday === wd);
+      for (const rule of ruleMatches) {
+        const person = byId.get(rule.personId);
+        if (!person || !person.active || person.availabilityOnly) continue;
+        const role = person.role;
+        const taken = working.some(
+          (a) =>
+            targetDates.includes(a.date) &&
+            a.crew === "duty" &&
+            a.role === role &&
+            (a.crewIndex ?? 0) === 0,
+        );
+        if (taken) continue;
+        const free = targetDates.every(
+          (d) =>
+            !working.some((a) => a.date === d && a.personId === person.id) &&
+            !busyOn(person.id, d),
+        );
+        if (!free) continue;
+        for (const d of targetDates) {
+          working.push({
+            id: uid(),
+            date: d,
+            crew: "duty",
+            role,
+            personId: person.id,
+          });
+        }
+      }
+    }
+  }
 
   // A fillable crew slot: a crew kind/index together with the set of days it
   // spans. The base duty crew and standby honour weekend BLOCK behaviour (one
@@ -158,6 +212,7 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
             role,
             ref,
             crew,
+            fixedDays,
           );
           personId =
             cands.find(

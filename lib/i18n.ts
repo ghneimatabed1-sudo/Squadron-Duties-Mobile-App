@@ -344,6 +344,26 @@ const en: Dict = {
   avail_range_hint:
     "The code you pick below will be applied to every day from the selected date through the end date — ideal for annual leave (AL).",
   avail_range_end: "Until (inclusive)",
+
+  reason_fixed_only: "Fixed-day only",
+  fixed_days_title: "Fixed days",
+  fixed_days_hint:
+    "Give someone the same weekday every week until you remove the rule. The rule fills the day's duty slot first; it counts as their turn in the rotation like any other duty.",
+  fixed_day_add: "Add fixed day",
+  fixed_day_person: "Person",
+  fixed_day_weekday: "Weekday",
+  fixed_day_only_toggle: "Only this day — out of the normal rotation",
+  fixed_day_only_hint:
+    "The app will never offer this person any other day automatically.",
+  fixed_day_weekends_toggle: "Keep them in the weekend rotation",
+  fixed_day_weekends_hint:
+    "Even though weekdays are fixed-only, they still take normal weekend turns (Thu–Fri–Sat).",
+  fixed_day_every: "Every",
+  fixed_day_out_of_rotation: "Out of rotation",
+  fixed_day_with_weekends: "+ weekends",
+  fixed_day_none: "No fixed days yet.",
+  fixed_day_applies_note:
+    "New rules apply when empty days are filled — use Balance on an already-filled week to re-shuffle it.",
 };
 
 const ar: Dict = {
@@ -684,6 +704,25 @@ const ar: Dict = {
   avail_range_hint:
     "الرمز الذي تختاره أدناه سيطبق على كل يوم من التاريخ المحدد حتى تاريخ النهاية — مثالي للإجازة السنوية (AL).",
   avail_range_end: "حتى (شامل)",
+
+  reason_fixed_only: "يوم ثابت فقط",
+  fixed_days_title: "الأيام الثابتة",
+  fixed_days_hint:
+    "امنح شخصًا نفس اليوم من كل أسبوع حتى تزيل القاعدة يدويًا. تملأ القاعدة خانة مناوبة اليوم أولًا، وتحسب دوره في التناوب كأي مناوبة أخرى.",
+  fixed_day_add: "إضافة يوم ثابت",
+  fixed_day_person: "الشخص",
+  fixed_day_weekday: "اليوم",
+  fixed_day_only_toggle: "هذا اليوم فقط — خارج التناوب العادي",
+  fixed_day_only_hint: "لن يعرض التطبيق هذا الشخص في أي يوم آخر تلقائيًا.",
+  fixed_day_weekends_toggle: "إبقاؤه في تناوب عطلة نهاية الأسبوع",
+  fixed_day_weekends_hint:
+    "رغم أن أيام الأسبوع ثابتة فقط، يستمر في أخذ أدوار عطلة نهاية الأسبوع العادية (خميس–جمعة–سبت).",
+  fixed_day_every: "كل",
+  fixed_day_out_of_rotation: "خارج التناوب",
+  fixed_day_with_weekends: "+ عطلات نهاية الأسبوع",
+  fixed_day_none: "لا توجد أيام ثابتة بعد.",
+  fixed_day_applies_note:
+    "تطبق القواعد الجديدة عند ملء الأيام الفارغة — استخدم «موازنة» لأسبوع معبأ مسبقًا لإعادة توزيعه.",
 };
 
 export const translations: Record<Language, Dict> = { en, ar };

@@ -77,6 +77,30 @@ export interface SoloAssignment {
 }
 
 /**
+ * A recurring "fixed day" rule: this person takes duty every week on this
+ * weekday (as their own role) until the rule is removed manually. Auto-fill
+ * writes them into the slot first, and the assignment counts toward fairness
+ * exactly like any other turn.
+ */
+export interface FixedDayRule {
+  id: string;
+  personId: string;
+  /** JS getDay() convention: 0=Sun ... 6=Sat. */
+  weekday: number;
+  /**
+   * When true, this person is OUT of the normal rotation: auto-fill never
+   * offers them any day except their fixed weekday(s). When false, they keep
+   * rotating like everyone else on top of the fixed day.
+   */
+  onlyFixed?: boolean;
+  /**
+   * Only meaningful when `onlyFixed` is true: keep the person in the normal
+   * WEEKEND rotation (Thu/Fri/Sat) even though weekdays are fixed-only.
+   */
+  includeWeekends?: boolean;
+}
+
+/**
  * A named, reusable location (e.g. "Aqaba") with an optional list of pilots
  * who must never be assigned there. Exclusions are by personId.
  */
@@ -142,6 +166,8 @@ export interface AppState {
   locations: LocationAssignment[];
   locationDefs: LocationDef[];
   solos: SoloAssignment[];
+  /** Recurring fixed-weekday duty rules (until removed manually). */
+  fixedDays: FixedDayRule[];
   /**
    * Weekend keys (the Thursday ISO date of a weekend) that are in SPLIT mode —
    * each weekend day gets its own crew. Weekends NOT listed here are blocks:
@@ -184,6 +210,7 @@ export const DEFAULT_STATE: AppState = {
   locations: [],
   locationDefs: [],
   solos: [],
+  fixedDays: [],
   splitWeekends: [],
   extraCrews: {},
   availability: [],
