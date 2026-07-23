@@ -107,19 +107,19 @@ export function buildAvailabilityHtml(data: AvailabilitySheetData): string {
     font-weight: 700;
     text-align: center;
   }
-  thead th.head-num { width: 22px; }
-  thead th.head-name { width: 110px; font-size: 11px; }
-  thead th.head-tot { width: 90px; font-size: 11px; }
+  thead th.head-num { width: 18px; }
+  thead th.head-name { width: 74px; font-size: 10.5px; }
+  thead th.head-tot { width: 74px; font-size: 10.5px; }
   thead th.d.wk { background: #dbe6f5; }
-  tbody td { padding: 4px 2px; font-size: 10px; text-align: center; vertical-align: middle; }
-  td.num { font-weight: 700; background: var(--shade); }
-  td.nm { text-align: ${data.isRTL ? "right" : "left"}; padding: 4px 6px; }
-  td.nm .pname { font-weight: 700; font-size: 11px; }
-  td.nm .prole { font-size: 9px; color: var(--muted); margin-top: 1px; }
-  td.c { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tbody td { padding: 4px 0; font-size: 9px; text-align: center; vertical-align: middle; }
+  td.num { font-weight: 700; background: var(--shade); font-size: 8.5px; }
+  td.nm { text-align: ${data.isRTL ? "right" : "left"}; padding: 4px 4px; overflow: hidden; }
+  td.nm .pname { font-weight: 700; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.nm .prole { font-size: 8px; color: var(--muted); margin-top: 1px; }
+  td.c { font-weight: 700; overflow: hidden; white-space: nowrap; letter-spacing: -0.3px; }
   td.c.wk { background: var(--shade); }
-  td.tots { font-size: 9.5px; text-align: ${data.isRTL ? "right" : "left"}; padding: 4px 5px; }
-  td.tots .tot { display: inline-block; margin: 1px 2px; padding: 1px 4px; background: var(--shade); border-radius: 3px; white-space: nowrap; }
+  td.tots { font-size: 8.5px; text-align: ${data.isRTL ? "right" : "left"}; padding: 3px 3px; }
+  td.tots .tot { display: inline-block; margin: 1px 1px; padding: 1px 3px; background: var(--shade); border-radius: 3px; white-space: nowrap; }
   .legend {
     margin-top: 14px;
     border: 1px solid var(--line);

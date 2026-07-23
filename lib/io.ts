@@ -84,8 +84,14 @@ export async function exportRosterSheet(
     return;
   }
 
-  // Native: render the HTML to a real PDF, then share it.
-  const { uri } = await Print.printToFileAsync({ html });
+  // Native: render the HTML to a real PDF, then share it. The sheets are wide
+  // month tables, so render on a LANDSCAPE page (A4-landscape in points) —
+  // expo-print ignores the CSS @page rule, so the size must be set here.
+  const { uri } = await Print.printToFileAsync({
+    html,
+    width: 842,
+    height: 595,
+  });
 
   // Give the shared file a friendly name (printToFileAsync uses a random name).
   const pdfName = fileName.replace(/\.[^.]+$/, "") + ".pdf";
