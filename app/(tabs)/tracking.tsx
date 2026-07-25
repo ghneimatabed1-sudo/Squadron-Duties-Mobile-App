@@ -20,6 +20,9 @@ import {
   useUI,
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
+import { safeFileBase } from "@/lib/filenames";
+import { exportRosterSheet } from "@/lib/io";
+import { buildReportHtml, ReportSection } from "@/lib/reportHtml";
 import {
   addDays,
   addMonths,
@@ -40,6 +43,8 @@ export default function TrackingScreen() {
   const [from, setFrom] = useState(() => startOfMonth(today));
   const [to, setTo] = useState(today);
   const [logging, setLogging] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   if (!app.ready) return <Loading />;
   const t = app.t;
@@ -135,6 +140,27 @@ export default function TrackingScreen() {
               <DateField label={t("to")} value={to} onChange={setTo} formatDate={(iso) => fmtDate(app, iso)} />
             </View>
 
+            <View style={{ flexDirection: row, gap: 8, marginTop: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Btn
+                  label={t("fairness_check")}
+                  icon="check-circle"
+                  variant="secondary"
+                  onPress={() => setChecking(true)}
+                  disabled={!validRange}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Btn
+                  label={t("export_report")}
+                  icon="share"
+                  variant="secondary"
+                  onPress={() => setExporting(true)}
+                  disabled={!validRange}
+                />
+              </View>
+            </View>
+
             <View style={{ height: 16 }} />
             <SectionLabel text={t("captains")} />
             {captains.length === 0 ? (
@@ -169,6 +195,22 @@ export default function TrackingScreen() {
         )}
       </Screen>
       {logging ? <LogPastDutyModal onClose={() => setLogging(false)} /> : null}
+      {checking ? (
+        <FairnessCheckModal
+          captains={captains}
+          copilots={copilots}
+          onClose={() => setChecking(false)}
+        />
+      ) : null}
+      {exporting ? (
+        <ExportReportModal
+          captains={captains}
+          copilots={copilots}
+          from={from}
+          to={to}
+          onClose={() => setExporting(false)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -310,6 +352,268 @@ function LogPastDutyModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function FairnessCheckModal({
+  captains,
+  copilots,
+  onClose,
+}: {
+  captains: PersonTotals[];
+  copilots: PersonTotals[];
+  onClose: () => void;
+}) {
+  const { colors, row, textAlign } = useUI();
+  const app = useApp();
+  const insets = useSafeAreaInsets();
+  const t = app.t;
+
+  // A person is flagged when they are a full turn (or more) away from the
+  // group average — smaller fractions are unavoidable rounding, not unfairness.
+  const THRESHOLD = 1;
+  const groups: { label: string; rows: PersonTotals[] }[] = [
+    { label: t("captains"), rows: captains },
+    { label: t("copilots"), rows: copilots },
+  ].map((g) => ({
+    label: g.label,
+    rows: g.rows.filter((r) => Math.abs(r.balance) >= THRESHOLD),
+  }));
+  const allGood = groups.every((g) => g.rows.length === 0);
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16, borderColor: colors.border }]}>
+        <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <Text style={{ fontFamily: font.bold, fontSize: 18, color: colors.foreground }}>{t("fairness_check")}</Text>
+          <IconButton icon="x" onPress={onClose} />
+        </View>
+        <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+          {allGood ? (
+            <View style={{ flexDirection: row, gap: 10, alignItems: "center", padding: 14, borderRadius: colors.radius, backgroundColor: colors.primary + "14", borderWidth: StyleSheet.hairlineWidth, borderColor: colors.primary }}>
+              <Feather name="check-circle" size={20} color={colors.primary} />
+              <Text style={{ flex: 1, fontFamily: font.semibold, fontSize: 14.5, color: colors.foreground, textAlign }}>
+                {t("fairness_all_good")}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={{ fontFamily: font.regular, fontSize: 13, color: colors.mutedForeground, lineHeight: 19, marginBottom: 12, textAlign }}>
+                {t("fairness_issues_hint")}
+              </Text>
+              {groups.map((g) =>
+                g.rows.length === 0 ? null : (
+                  <View key={g.label} style={{ marginBottom: 12 }}>
+                    <SectionLabel text={g.label} />
+                    {g.rows.map((r) => {
+                      const owed = r.balance < 0;
+                      return (
+                        <View
+                          key={r.person.id}
+                          style={{
+                            flexDirection: row,
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: 12,
+                            marginBottom: 8,
+                            borderRadius: colors.radius,
+                            backgroundColor: colors.card,
+                            borderWidth: StyleSheet.hairlineWidth,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ fontFamily: font.semibold, fontSize: 14.5, color: colors.foreground, textAlign }}>
+                            {r.person.name}
+                          </Text>
+                          <Pill
+                            label={`${Math.abs(r.balance).toFixed(1)} ${owed ? t("owed") : t("ahead")}`}
+                            tone={owed ? "owed" : "ahead"}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                ),
+              )}
+            </>
+          )}
+          <View style={{ flexDirection: row, gap: 8, marginTop: 12 }}>
+            <Feather name="info" size={14} color={colors.mutedForeground} />
+            <Text style={{ flex: 1, fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, lineHeight: 18, textAlign }}>
+              {t("fairness_check_hint")}
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+function ExportReportModal({
+  captains,
+  copilots,
+  from,
+  to,
+  onClose,
+}: {
+  captains: PersonTotals[];
+  copilots: PersonTotals[];
+  from: string;
+  to: string;
+  onClose: () => void;
+}) {
+  const { colors, row, textAlign } = useUI();
+  const app = useApp();
+  const insets = useSafeAreaInsets();
+  const t = app.t;
+
+  const all = useMemo(() => [...captains, ...copilots], [captains, copilots]);
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(all.map((r) => r.person.id)),
+  );
+  const [busy, setBusy] = useState(false);
+
+  const toggle = (id: string) => {
+    tap();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const doExport = async () => {
+    if (selected.size === 0 || busy) return;
+    setBusy(true);
+    try {
+      const toSection = (label: string, rows: PersonTotals[]): ReportSection => ({
+        title: label,
+        rows: rows
+          .filter((r) => selected.has(r.person.id))
+          .map((r) => ({
+            name: r.person.name,
+            duty: r.duty,
+            weekendDuty: r.weekendDuty,
+            standby: r.standby,
+            special: r.special,
+            location: r.location,
+            total: r.total,
+            balance: r.balance,
+          })),
+      });
+      const squadron = app.settings.squadronName.trim();
+      const html = buildReportHtml({
+        title: squadron ? `${squadron} — ${t("report_title")}` : t("report_title"),
+        subtitle: `${fmtDate(app, from)}  →  ${fmtDate(app, to)}`,
+        isRTL: app.isRTL,
+        labels: {
+          person: t("person"),
+          duties: t("duties"),
+          weekend: t("weekend_duties"),
+          standbys: t("standbys"),
+          specials: t("specials"),
+          locations: t("locations"),
+          total: t("total"),
+          balance: t("balance"),
+          owed: t("owed"),
+          ahead: t("ahead"),
+          balanced: t("balanced"),
+        },
+        sections: [toSection(t("captains"), captains), toSection(t("copilots"), copilots)],
+      });
+      const base = safeFileBase(
+        `${squadron || t("report_title")} ${from} ${to}`,
+        "Duty report",
+      );
+      await exportRosterSheet(html, `${base}.pdf`, { orientation: "portrait" });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16, borderColor: colors.border }]}>
+        <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <Text style={{ fontFamily: font.bold, fontSize: 18, color: colors.foreground }}>{t("export_report")}</Text>
+          <IconButton icon="x" onPress={onClose} />
+        </View>
+
+        <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground, textAlign }}>
+            {t("choose_people")}
+          </Text>
+          <View style={{ flexDirection: row, gap: 8 }}>
+            <Btn
+              label={t("select_all")}
+              variant="ghost"
+              onPress={() => setSelected(new Set(all.map((r) => r.person.id)))}
+            />
+            <Btn label={t("select_none")} variant="ghost" onPress={() => setSelected(new Set())} />
+          </View>
+        </View>
+
+        <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+          {[
+            { label: t("captains"), rows: captains },
+            { label: t("copilots"), rows: copilots },
+          ].map((g) =>
+            g.rows.length === 0 ? null : (
+              <View key={g.label} style={{ marginBottom: 10 }}>
+                <SectionLabel text={g.label} />
+                {g.rows.map((r) => {
+                  const on = selected.has(r.person.id);
+                  return (
+                    <Pressable
+                      key={r.person.id}
+                      onPress={() => toggle(r.person.id)}
+                      style={{
+                        flexDirection: row,
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: 11,
+                        marginBottom: 8,
+                        borderRadius: colors.radius,
+                        backgroundColor: on ? colors.primary + "14" : colors.card,
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: on ? colors.primary : colors.border,
+                      }}
+                    >
+                      <Text style={{ fontFamily: font.semibold, fontSize: 14.5, color: colors.foreground, textAlign }}>
+                        {r.person.name}
+                      </Text>
+                      <Feather
+                        name={on ? "check-circle" : "circle"}
+                        size={19}
+                        color={on ? colors.primary : colors.mutedForeground}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ),
+          )}
+        </ScrollView>
+
+        {selected.size === 0 ? (
+          <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, marginTop: 8, textAlign }}>
+            {t("no_one_selected")}
+          </Text>
+        ) : null}
+        <View style={{ marginTop: 12 }}>
+          <Btn
+            label={t("export_report")}
+            icon="share"
+            onPress={doExport}
+            disabled={selected.size === 0 || busy}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function fmtDate(app: ReturnType<typeof useApp>, iso: string): string {
   const d = parseISO(iso);
   return `${app.weekday(dayOfWeek(iso))} · ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
@@ -337,6 +641,7 @@ function TotalRow({ row }: { row: PersonTotals }) {
       </View>
       <View style={{ flexDirection: dir, gap: 8, flexWrap: "wrap" }}>
         <Stat icon="shield" label={t("duties")} value={row.duty} />
+        <Stat icon="sun" label={t("weekend_duties")} value={row.weekendDuty} />
         <Stat icon="clock" label={t("standbys")} value={row.standby} />
         <Stat icon="star" label={t("specials")} value={row.special} />
         <Stat icon="map-pin" label={t("locations")} value={row.location} />

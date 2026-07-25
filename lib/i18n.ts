@@ -144,6 +144,21 @@ const en: Dict = {
     "All numbers are recomputed from the full saved history — no running tallies drift over time.",
   tracking_range_hint:
     "Counts are for the dates you pick. Your full history is always kept — choose any range to review it.",
+  weekend_duties: "Weekend",
+  fairness_check: "Fairness check",
+  fairness_all_good:
+    "Fairness looks good — everyone is balanced for the selected dates.",
+  fairness_issues_hint:
+    "These people are out of balance for the selected dates:",
+  fairness_check_hint:
+    "Compares each person's total turns (duty + activated standby + special + location days) with the group average for the dates you picked.",
+  export_report: "Export report",
+  report_title: "Duty report",
+  choose_people: "Choose people",
+  select_all: "All",
+  select_none: "None",
+  total: "Total",
+  no_one_selected: "Select at least one person to export.",
 
   special_events: "Special events",
   location_duty: "Location duty",
@@ -511,6 +526,19 @@ const ar: Dict = {
     "تُحتسب كل الأرقام من كامل السجل المحفوظ — لا توجد عدّادات جارية تنحرف مع الوقت.",
   tracking_range_hint:
     "الأرقام محسوبة للتواريخ التي تختارها. سجلك الكامل محفوظ دائماً — اختر أي فترة لمراجعتها.",
+  weekend_duties: "نهاية الأسبوع",
+  fairness_check: "فحص العدالة",
+  fairness_all_good: "العدالة جيدة — الجميع متوازن في الفترة المحددة.",
+  fairness_issues_hint: "هؤلاء الأشخاص خارج التوازن في الفترة المحددة:",
+  fairness_check_hint:
+    "يقارن مجموع أدوار كل شخص (المناوبات + الاحتياط المفعّل + المناسبات + أيام الموقع) مع متوسط المجموعة للفترة المحددة.",
+  export_report: "تصدير التقرير",
+  report_title: "تقرير المناوبات",
+  choose_people: "اختر الأشخاص",
+  select_all: "الكل",
+  select_none: "لا أحد",
+  total: "المجموع",
+  no_one_selected: "اختر شخصاً واحداً على الأقل للتصدير.",
 
   special_events: "المناسبات الخاصة",
   location_duty: "مناوبة الموقع",
