@@ -15,21 +15,46 @@ import {
  * fixed-day rules? A person with any `onlyFixed` rule is out of the general
  * rotation: they may only serve on their fixed weekday(s) — plus the weekend
  * rotation when one of their rules says `includeWeekends`.
+ *
+ * STANDBY is stricter: anyone with ANY fixed-day rule is never auto-offered a
+ * standby night outside their fixed weekday(s) — a fixed day means "this day,
+ * that's it", not "this day plus standby somewhere else in the week".
  */
 export function allowedByFixedRules(
   fixedDays: FixedDayRule[] | undefined,
   personId: string,
   date: string,
+  crew: CrewKind = "duty",
 ): boolean {
   if (!fixedDays || fixedDays.length === 0) return true;
   const mine = fixedDays.filter((f) => f.personId === personId);
-  if (!mine.some((f) => f.onlyFixed)) return true;
+  if (mine.length === 0) return true;
   const wd = dayOfWeek(date);
-  if (mine.some((f) => f.weekday === wd)) return true;
+  const onFixedDay = mine.some((f) => f.weekday === wd);
+  if (crew === "standby") return onFixedDay;
+  if (!mine.some((f) => f.onlyFixed)) return true;
+  if (onFixedDay) return true;
   if (isWeekend(date) && mine.some((f) => f.onlyFixed && f.includeWeekends)) {
     return true;
   }
   return false;
+}
+
+/**
+ * Can this person ever take a normal WEEKEND rotation slot? False only for
+ * people locked to fixed weekdays (`onlyFixed`) with no weekend fixed day and
+ * no `includeWeekends` opt-in. Used to keep the weekend forecast honest.
+ */
+export function canRotateWeekends(
+  fixedDays: FixedDayRule[] | undefined,
+  personId: string,
+): boolean {
+  if (!fixedDays || fixedDays.length === 0) return true;
+  const mine = fixedDays.filter((f) => f.personId === personId);
+  if (!mine.some((f) => f.onlyFixed)) return true;
+  if (mine.some((f) => f.onlyFixed && f.includeWeekends)) return true;
+  // Weekend weekdays: Thu=4, Fri=5, Sat=6 (JS getDay convention).
+  return mine.some((f) => f.weekday === 4 || f.weekday === 5 || f.weekday === 6);
 }
 
 /**
@@ -301,8 +326,9 @@ export function recommendForSlot(
       } else if (busySameDay.has(p.id)) {
         eligible = false;
         reasonKey = "reason_busy";
-      } else if (!allowedByFixedRules(fixedDays, p.id, date)) {
-        // Fixed-day-only people never rotate onto other days automatically.
+      } else if (!allowedByFixedRules(fixedDays, p.id, date, crew)) {
+        // Fixed-day-only people never rotate onto other days automatically,
+        // and ANYONE with a fixed rule is never auto-offered standby elsewhere.
         eligible = false;
         reasonKey = "reason_fixed_only";
       }

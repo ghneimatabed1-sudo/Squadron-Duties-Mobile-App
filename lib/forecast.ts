@@ -1,4 +1,5 @@
 import { addDays, isWeekend, startOfWeek, weekendDates } from "./dates";
+import { canRotateWeekends } from "./fairness";
 import { autoFill } from "./schedule";
 import { AppState, Person, SlotRole } from "./types";
 
@@ -156,7 +157,15 @@ export function locationQueue(state: AppState, role: SlotRole): LocationQueueRow
     if (!cur || loc.endDate > cur) last.set(loc.personId, loc.endDate);
   }
 
-  return rankQueue(state, role, counts, last);
+  // Someone barred from EVERY saved location can never be picked for location
+  // duty, so they have no place in the location order.
+  const defs = state.locationDefs ?? [];
+  const barredEverywhere = (id: string): boolean =>
+    defs.length > 0 && defs.every((d) => d.excluded.includes(id));
+
+  return rankQueue(state, role, counts, last).filter(
+    (r) => !barredEverywhere(r.person.id),
+  );
 }
 
 /**
@@ -184,7 +193,11 @@ export function weekendQueue(state: AppState, role: SlotRole): LocationQueueRow[
   const counts = new Map<string, number>();
   for (const [id, set] of served) counts.set(id, set.size);
 
-  return rankQueue(state, role, counts, last);
+  // People locked to fixed weekdays (out of the weekend rotation) can never
+  // be picked for a weekend, so they are hidden from the weekend order.
+  return rankQueue(state, role, counts, last).filter((r) =>
+    canRotateWeekends(state.fixedDays, r.person.id),
+  );
 }
 
 function rankQueue(
