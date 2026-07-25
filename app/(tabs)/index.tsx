@@ -1,6 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { PlanCrewSheet } from "@/components/PlanCrewSheet";
 import { SlotEditorSheet, SlotTarget } from "@/components/SlotEditorSheet";
@@ -493,6 +501,7 @@ function BalanceSheet({
   onClose: () => void;
 }) {
   const { colors, row, textAlign } = useUI();
+  const { height: screenH } = useWindowDimensions();
   const app = useApp();
   const t = app.t;
   const changes = useMemo(
@@ -519,6 +528,7 @@ function BalanceSheet({
             padding: 20,
             paddingBottom: 34,
             gap: 14,
+            maxHeight: Math.round(screenH * 0.85),
           }}
         >
           <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between" }}>
@@ -534,7 +544,11 @@ function BalanceSheet({
           </Text>
 
           {changes.length > 0 ? (
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flexGrow: 0, flexShrink: 1 }}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+            >
               <View style={{ gap: 8 }}>
                 {changes.map((c, i) => (
                   <View

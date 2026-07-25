@@ -1,4 +1,4 @@
-import { addDays, startOfWeek, weekendDates } from "./dates";
+import { addDays, isWeekend, startOfWeek, weekendDates } from "./dates";
 import { autoFill } from "./schedule";
 import { AppState, Person, SlotRole } from "./types";
 
@@ -156,6 +156,43 @@ export function locationQueue(state: AppState, role: SlotRole): LocationQueueRow
     if (!cur || loc.endDate > cur) last.set(loc.personId, loc.endDate);
   }
 
+  return rankQueue(state, role, counts, last);
+}
+
+/**
+ * The upcoming ORDER for weekend duty per role, ranked from the saved weekend
+ * duty history: fewest weekends served first, then longest ago, then name.
+ * People who have never done a weekend duty are always at the front. A block
+ * weekend (Thu–Sat crewed by the same pair) counts as ONE weekend, not three.
+ */
+export function weekendQueue(state: AppState, role: SlotRole): LocationQueueRow[] {
+  // Distinct weekends served per person (a Thu-Sat block = 1).
+  const served = new Map<string, Set<string>>();
+  const last = new Map<string, string>();
+  for (const a of state.assignments) {
+    if (a.crew !== "duty" || a.role !== role || !isWeekend(a.date)) continue;
+    const key = weekendDates(a.date)[0];
+    let set = served.get(a.personId);
+    if (!set) {
+      set = new Set();
+      served.set(a.personId, set);
+    }
+    set.add(key);
+    const cur = last.get(a.personId);
+    if (!cur || a.date > cur) last.set(a.personId, a.date);
+  }
+  const counts = new Map<string, number>();
+  for (const [id, set] of served) counts.set(id, set.size);
+
+  return rankQueue(state, role, counts, last);
+}
+
+function rankQueue(
+  state: AppState,
+  role: SlotRole,
+  counts: Map<string, number>,
+  last: Map<string, string>,
+): LocationQueueRow[] {
   return state.people
     .filter((p) => p.role === role && p.active && !p.singleCover && !p.availabilityOnly)
     .map((p) => ({

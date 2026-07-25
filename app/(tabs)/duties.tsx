@@ -22,6 +22,7 @@ import {
   LocationQueueRow,
   locationQueue,
   WeekendForecast,
+  weekendQueue,
 } from "@/lib/forecast";
 
 type HorizonKey = "w3" | "m1" | "m2" | "m3";
@@ -50,6 +51,14 @@ export default function DutiesScreen() {
   );
   const cpQueue = useMemo(
     () => (app.ready ? locationQueue(app.state, "copilot") : []),
+    [app.ready, app.state],
+  );
+  const capWkndQueue = useMemo(
+    () => (app.ready ? weekendQueue(app.state, "captain") : []),
+    [app.ready, app.state],
+  );
+  const cpWkndQueue = useMemo(
+    () => (app.ready ? weekendQueue(app.state, "copilot") : []),
     [app.ready, app.state],
   );
 
@@ -107,6 +116,16 @@ export default function DutiesScreen() {
             ) : (
               weekends.map((w) => <WeekendCard key={w.key} w={w} />)
             )}
+
+            <View style={{ height: 20 }} />
+            <SectionLabel text={t("duties_weekend_queue_title")} />
+            <Hint text={t("duties_weekend_queue_hint")} />
+            <View style={{ height: 8 }} />
+            <Text style={sub(colors).h}>{t("captains")}</Text>
+            <QueueList rows={capWkndQueue} />
+            <View style={{ height: 14 }} />
+            <Text style={sub(colors).h}>{t("copilots")}</Text>
+            <QueueList rows={cpWkndQueue} />
 
             <View style={{ height: 20 }} />
             <SectionLabel text={t("duties_location_title")} />

@@ -327,6 +327,9 @@ const en: Dict = {
     "A read-only forecast from the rotation queue — nothing here is saved. It updates automatically whenever the real schedule changes. Slots already written in the schedule show as Planned; the rest are Predicted.",
   duties_loc_hint:
     "The upcoming order for location duty: fewest stints first, then longest ago. #1 is next in line. Location duties have no fixed dates, so this is an order, not a calendar.",
+  duties_weekend_queue_title: "Weekend duty order",
+  duties_weekend_queue_hint:
+    "The rotation order for weekend duty, from the saved history: fewest weekends served first, then longest ago. People who never did a weekend duty are at the front. A Thu–Sat block counts as one weekend.",
   duties_never: "Never",
   planned: "Planned",
   predicted: "Predicted",
@@ -687,6 +690,9 @@ const ar: Dict = {
     "توقعات للقراءة فقط من طابور المناوبة — لا يُحفظ أي شيء هنا. تتحدث تلقائيًا عند أي تغيير في الجدول الفعلي. الخانات المكتوبة فعلًا في الجدول تظهر «مخطط»، والباقي «متوقع».",
   duties_loc_hint:
     "ترتيب مناوبات المواقع القادمة: الأقل عددًا أولًا، ثم الأقدم. رقم 1 هو التالي في الدور. مناوبات المواقع بلا تواريخ ثابتة، لذا هذا ترتيب وليس تقويمًا.",
+  duties_weekend_queue_title: "ترتيب مناوبات نهاية الأسبوع",
+  duties_weekend_queue_hint:
+    "ترتيب الدور لمناوبات نهاية الأسبوع من السجل المحفوظ: الأقل عددًا أولًا، ثم الأقدم. من لم يقم بمناوبة نهاية أسبوع يكون في المقدمة. نهاية الأسبوع (الخميس–السبت) تُحسب مناوبة واحدة.",
   duties_never: "أبدًا",
   planned: "مخطط",
   predicted: "متوقع",
