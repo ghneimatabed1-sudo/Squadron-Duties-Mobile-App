@@ -61,14 +61,17 @@ export function canRotateWeekends(
  * ROTATION QUEUE ENGINE
  *
  * The schedule works like a paper duty list: whoever has waited LONGEST since
- * their last turn is next. There are three independent queues per role:
+ * their last turn is next. There are four independent queues per role:
  *
  *   - weekday duty queue
  *   - weekend duty queue
- *   - standby queue
+ *   - weekday standby queue
+ *   - weekend standby queue
  *
  * so weekday and weekend turns rotate fairly on their own — a heavy weekend
- * never exempts anyone from weekdays, and vice versa.
+ * never exempts anyone from weekdays, and vice versa. Standby splits the same
+ * way because a weekend standby is a 3-night block: one shared queue would let
+ * the rotation phase-lock so the same person kept eating the block.
  *
  * Real work sends you to the back of the line:
  *   - a weekday duty  -> back of the weekday queue
@@ -94,10 +97,15 @@ export interface QueueStats {
   lastWeekday: string | null;
   lastWeekend: string | null;
   lastStandby: string | null;
+  /** Standby, split like duty: weekday vs weekend standby rotate separately. */
+  lastStandbyWeekday: string | null;
+  lastStandbyWeekend: string | null;
   /** Real counts since the person joined/returned (for tiebreaks + display). */
   weekdayCount: number;
   weekendCount: number;
   standbyCount: number;
+  standbyWeekdayCount: number;
+  standbyWeekendCount: number;
   /** Every date the person is committed (duty, standby, special, location day) — for the rest rule. */
   workedDates: Set<string>;
   /** Normal duty/standby nights only — rest gap = settings.restDays. */
@@ -142,9 +150,13 @@ export function computeQueueStats(
         lastWeekday: p.activeSince ?? null,
         lastWeekend: p.activeSince ?? null,
         lastStandby: p.activeSince ?? null,
+        lastStandbyWeekday: p.activeSince ?? null,
+        lastStandbyWeekend: p.activeSince ?? null,
         weekdayCount: 0,
         weekendCount: 0,
         standbyCount: 0,
+        standbyWeekdayCount: 0,
+        standbyWeekendCount: 0,
         workedDates: new Set<string>(),
         dutyDates: new Set<string>(),
         specialDates: new Set<string>(),
@@ -174,6 +186,13 @@ export function computeQueueStats(
     } else if (a.crew === "standby") {
       q.lastStandby = later(q.lastStandby, a.date);
       q.standbyCount += 1;
+      if (isWeekend(a.date)) {
+        q.lastStandbyWeekend = later(q.lastStandbyWeekend, a.date);
+        q.standbyWeekendCount += 1;
+      } else {
+        q.lastStandbyWeekday = later(q.lastStandbyWeekday, a.date);
+        q.standbyWeekdayCount += 1;
+      }
     }
   }
 
@@ -303,14 +322,18 @@ export function recommendForSlot(
       const q = stats.get(p.id);
       const lastDutyDate = q
         ? crew === "standby"
-          ? q.lastStandby
+          ? slotIsWeekend
+            ? q.lastStandbyWeekend
+            : q.lastStandbyWeekday
           : slotIsWeekend
             ? q.lastWeekend
             : q.lastWeekday
         : null;
       const queueCount = q
         ? crew === "standby"
-          ? q.standbyCount
+          ? slotIsWeekend
+            ? q.standbyWeekendCount
+            : q.standbyWeekdayCount
           : slotIsWeekend
             ? q.weekendCount
             : q.weekdayCount
