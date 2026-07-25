@@ -86,7 +86,8 @@ export default function ScheduleScreen() {
       app.settings.squadronName.trim() || t("roster_title"),
     );
     const fileName = `${safeTitle} ${fmtFile(first)} to ${fmtFile(last)}.pdf`;
-    await exportRosterSheet(html, fileName);
+    // Weekly sheets are tall, not wide: portrait keeps a week on ONE page.
+    await exportRosterSheet(html, fileName, { orientation: "portrait" });
   };
 
   return (

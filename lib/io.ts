@@ -53,6 +53,7 @@ export async function exportToFile(
 export async function exportRosterSheet(
   html: string,
   fileName: string,
+  options?: { orientation?: "landscape" | "portrait" },
 ): Promise<void> {
   if (Platform.OS === "web") {
     const win = window.open("", "_blank");
@@ -84,13 +85,15 @@ export async function exportRosterSheet(
     return;
   }
 
-  // Native: render the HTML to a real PDF, then share it. The sheets are wide
-  // month tables, so render on a LANDSCAPE page (A4-landscape in points) —
-  // expo-print ignores the CSS @page rule, so the size must be set here.
+  // Native: render the HTML to a real PDF, then share it. Wide month tables
+  // use a LANDSCAPE A4 page (default); tall weekly sheets use PORTRAIT so the
+  // whole week fits on ONE page. expo-print ignores the CSS @page rule, so
+  // the size must be set here (A4 in points: 595 x 842).
+  const portrait = options?.orientation === "portrait";
   const { uri } = await Print.printToFileAsync({
     html,
-    width: 842,
-    height: 595,
+    width: portrait ? 595 : 842,
+    height: portrait ? 842 : 595,
   });
 
   // Give the shared file a friendly name (printToFileAsync uses a random name).
