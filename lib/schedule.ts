@@ -10,6 +10,7 @@ import {
   Assignment,
   CrewKind,
   FixedDayRule,
+  LeaveRange,
   LocationAssignment,
   Person,
   Settings,
@@ -78,6 +79,8 @@ export interface AutoFillInput {
   extraCrews?: Record<string, number>;
   /** Recurring fixed-weekday duty rules — applied before the rotation fill. */
   fixedDays?: FixedDayRule[];
+  /** Away/leave ranges — people never picked for any day inside their range. */
+  leaves?: LeaveRange[];
 }
 
 /**
@@ -99,13 +102,19 @@ export interface AutoFillInput {
  */
 export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
   const { people, specials, locations, settings } = input;
+  const leaves = input.leaves ?? [];
   const dateSet = new Set(dates);
-  // Is this person committed elsewhere (special event or location stint) on `d`?
+  // Is this person committed elsewhere (special event or location stint) or
+  // marked away on `d`?
   const busyOn = (personId: string, d: string): boolean =>
     specials.some((s) => s.date === d && s.personId === personId) ||
     locations.some(
       (loc) =>
         loc.personId === personId && d >= loc.startDate && d <= loc.endDate,
+    ) ||
+    leaves.some(
+      (lv) =>
+        lv.personId === personId && d >= lv.startDate && d <= lv.endDate,
     );
   const splitSet = new Set(input.splitWeekends);
   const extraCrews = input.extraCrews ?? {};
@@ -239,6 +248,7 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
             ref,
             crew,
             fixedDays,
+            leaves,
           );
           personId =
             cands.find(

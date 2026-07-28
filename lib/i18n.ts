@@ -85,7 +85,7 @@ const en: Dict = {
   clear_day_confirm: "Remove all assignments for this day?",
 
   recommended: "Recommended",
-  owed: "owed",
+  owed: "behind",
   ahead: "ahead",
   balanced: "Balanced",
   fair_share: "Fair share",
@@ -352,6 +352,13 @@ const en: Dict = {
   rename_person: "Rename",
   rename_person_hint:
     "The new name applies everywhere instantly — every duty, standby, event, location and availability record follows the person automatically.",
+  edit_person: "Edit",
+  away_dates: "Away dates",
+  away_dates_hint:
+    "While away, this person is never picked for any duty or standby. When the dates end they return to their normal place in the rotation.",
+  add_away_range: "Add away dates",
+  away_pill: "Away",
+  no_away_ranges: "No away dates set.",
 
   avail_only_person: "Availability only",
   avail_extra_people: "Extra names (availability only)",
@@ -725,6 +732,13 @@ const ar: Dict = {
   planned: "مخطط",
   predicted: "متوقع",
 
+  edit_person: "تعديل",
+  away_dates: "تواريخ الغياب",
+  away_dates_hint:
+    "أثناء الغياب لا يُختار هذا الشخص لأي واجب أو احتياط. وعند انتهاء التواريخ يعود إلى مكانه الطبيعي في التناوب.",
+  add_away_range: "إضافة تواريخ غياب",
+  away_pill: "غائب",
+  no_away_ranges: "لا توجد تواريخ غياب.",
   rename_person: "إعادة تسمية",
   rename_person_hint:
     "الاسم الجديد يطبق في كل مكان فورًا — كل مناوبة واستعداد ومناسبة وموقع وسجل جاهزية يتبع الشخص تلقائيًا.",

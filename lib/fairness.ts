@@ -3,6 +3,7 @@ import {
   Assignment,
   CrewKind,
   FixedDayRule,
+  LeaveRange,
   LocationAssignment,
   Person,
   Settings,
@@ -284,6 +285,7 @@ export function recommendForSlot(
   date: string,
   crew: CrewKind = "duty",
   fixedDays?: FixedDayRule[],
+  leaves?: LeaveRange[],
 ): Candidate[] {
   const stats = computeQueueStats(
     people, assignments, specials, locations, role, date,
@@ -301,6 +303,10 @@ export function recommendForSlot(
     ...locations
       .filter((loc) => date >= loc.startDate && date <= loc.endDate)
       .map((loc) => loc.personId),
+    // People marked AWAY (leave range) are unavailable for everything.
+    ...(leaves ?? [])
+      .filter((lv) => date >= lv.startDate && date <= lv.endDate)
+      .map((lv) => lv.personId),
   ]);
 
   // Each kind of work has its own adjustable rest gap.

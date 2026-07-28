@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Btn,
   Card,
+  DateField,
   EmptyState,
   Field,
   font,
@@ -28,7 +29,13 @@ import {
   useUI,
 } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
+import { dayOfWeek, parseISO, todayISO } from "@/lib/dates";
 import { SlotRole } from "@/lib/types";
+
+function fmtDate(app: ReturnType<typeof useApp>, iso: string): string {
+  const d = parseISO(iso);
+  return `${app.weekday(dayOfWeek(iso))} · ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+}
 
 export default function RosterScreen() {
   const { colors, row } = useUI();
@@ -96,6 +103,10 @@ function PersonRow({ id }: { id: string }) {
   const t = app.t;
   const [renaming, setRenaming] = useState(false);
   const person = app.state.people.find((p) => p.id === id);
+  const today = todayISO();
+  const awayNow = app.state.leaves.some(
+    (lv) => lv.personId === id && today >= lv.startDate && today <= lv.endDate,
+  );
   if (!person) return null;
 
   const confirmDelete = () => {
@@ -139,18 +150,15 @@ function PersonRow({ id }: { id: string }) {
           <Text style={{ fontFamily: font.semibold, fontSize: 15.5, color: colors.foreground, textAlign }}>
             {person.name}
           </Text>
-          {person.singleCover ? (
-            <View style={{ flexDirection: row, alignItems: "center", gap: 6 }}>
+          <View style={{ flexDirection: row, alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {person.singleCover ? (
               <Pill label={t("type_single_cover")} tone="accent" />
-              <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: person.active ? colors.success : colors.mutedForeground, textAlign }}>
-                {person.active ? t("in_rotation") : t("out_of_rotation")}
-              </Text>
-            </View>
-          ) : (
+            ) : null}
+            {awayNow ? <Pill label={t("away_pill")} tone="owed" /> : null}
             <Text style={{ fontFamily: font.medium, fontSize: 12.5, color: person.active ? colors.success : colors.mutedForeground, textAlign }}>
               {person.active ? t("in_rotation") : t("out_of_rotation")}
             </Text>
-          )}
+          </View>
           <Pressable
             onPress={() => {
               tap();
@@ -230,16 +238,33 @@ function RenamePersonModal({
   initialName: string;
   onClose: () => void;
 }) {
-  const { colors, row } = useUI();
+  const { colors, row, textAlign } = useUI();
   const app = useApp();
   const insets = useSafeAreaInsets();
   const t = app.t;
   const [name, setName] = useState(initialName);
+  const [addingAway, setAddingAway] = useState(false);
+  const [awayStart, setAwayStart] = useState(todayISO());
+  const [awayEnd, setAwayEnd] = useState(todayISO());
+
+  const myLeaves = useMemo(
+    () =>
+      app.state.leaves
+        .filter((lv) => lv.personId === id)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [app.state.leaves, id],
+  );
 
   const submit = () => {
     if (!name.trim()) return;
     app.renamePerson(id, name);
     onClose();
+  };
+
+  const addAway = () => {
+    if (awayEnd < awayStart) return;
+    app.addLeave(id, awayStart, awayEnd);
+    setAddingAway(false);
   };
 
   return (
@@ -253,7 +278,7 @@ function RenamePersonModal({
       >
         <View style={{ flexDirection: row, alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <Text style={{ fontFamily: font.bold, fontSize: 18, color: colors.foreground }}>
-            {t("rename_person")}
+            {t("edit_person")}
           </Text>
           <IconButton icon="x" onPress={onClose} />
         </View>
@@ -262,6 +287,60 @@ function RenamePersonModal({
         </Text>
         <View style={{ gap: 14 }}>
           <Field label={t("person_name")} value={name} onChangeText={setName} placeholder={t("name_placeholder")} />
+
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontFamily: font.medium, fontSize: 13, color: colors.mutedForeground, textAlign }}>
+              {t("away_dates")}
+            </Text>
+            <Text style={{ fontFamily: font.regular, fontSize: 12, color: colors.mutedForeground, lineHeight: 17, textAlign }}>
+              {t("away_dates_hint")}
+            </Text>
+            {myLeaves.length === 0 && !addingAway ? (
+              <Text style={{ fontFamily: font.regular, fontSize: 12.5, color: colors.mutedForeground, textAlign }}>
+                {t("no_away_ranges")}
+              </Text>
+            ) : null}
+            {myLeaves.map((lv) => (
+              <View
+                key={lv.id}
+                style={{
+                  flexDirection: row,
+                  alignItems: "center",
+                  gap: 8,
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: colors.border,
+                  backgroundColor: colors.muted,
+                }}
+              >
+                <Feather name="slash" size={13} color={colors.mutedForeground} />
+                <Text style={{ flex: 1, fontFamily: font.medium, fontSize: 12.5, color: colors.foreground, textAlign }}>
+                  {lv.startDate === lv.endDate
+                    ? fmtDate(app, lv.startDate)
+                    : `${fmtDate(app, lv.startDate)} → ${fmtDate(app, lv.endDate)}`}
+                </Text>
+                <IconButton
+                  icon="trash-2"
+                  size={14}
+                  onPress={() => app.removeLeave(lv.id)}
+                  color={colors.destructive}
+                  bg={colors.destructive + "14"}
+                />
+              </View>
+            ))}
+            {addingAway ? (
+              <View style={{ gap: 10, marginTop: 4 }}>
+                <DateField label={t("start_date")} value={awayStart} onChange={(v) => { setAwayStart(v); if (awayEnd < v) setAwayEnd(v); }} formatDate={(iso) => fmtDate(app, iso)} />
+                <DateField label={t("end_date")} value={awayEnd} onChange={setAwayEnd} formatDate={(iso) => fmtDate(app, iso)} />
+                <Btn label={t("add")} icon="check" onPress={addAway} disabled={awayEnd < awayStart} />
+              </View>
+            ) : (
+              <Btn label={t("add_away_range")} icon="plus" variant="secondary" onPress={() => { setAwayStart(todayISO()); setAwayEnd(todayISO()); setAddingAway(true); }} />
+            )}
+          </View>
+
           <Btn label={t("save")} icon="check" onPress={submit} disabled={!name.trim()} />
         </View>
       </View>

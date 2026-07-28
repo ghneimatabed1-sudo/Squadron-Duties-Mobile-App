@@ -79,6 +79,7 @@ export function forecastWeekends(
       settings: state.settings,
       splitWeekends: state.splitWeekends,
       fixedDays: state.fixedDays,
+      leaves: state.leaves,
     },
     days,
   );

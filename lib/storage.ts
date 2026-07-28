@@ -11,6 +11,7 @@ import {
   DEFAULT_SETTINGS,
   FixedDayRule,
   Language,
+  LeaveRange,
   LocationAssignment,
   LocationDef,
   MAX_EXTRA_CREWS,
@@ -150,6 +151,26 @@ function parseLocation(
   return {
     id: v.id,
     location: v.location,
+    startDate: v.startDate,
+    endDate: v.endDate,
+    personId: v.personId,
+  };
+}
+
+function parseLeave(v: unknown, peopleIds: Set<string>): LeaveRange | null {
+  if (!isObj(v)) return null;
+  if (
+    !isNonEmptyStr(v.id) ||
+    !isValidISO(v.startDate) ||
+    !isValidISO(v.endDate) ||
+    v.endDate < v.startDate ||
+    !isNonEmptyStr(v.personId) ||
+    !peopleIds.has(v.personId)
+  ) {
+    return null;
+  }
+  return {
+    id: v.id,
     startDate: v.startDate,
     endDate: v.endDate,
     personId: v.personId,
@@ -349,6 +370,14 @@ export function normalize(obj: unknown): AppState {
     }
   }
 
+  const leaves: LeaveRange[] = [];
+  if (Array.isArray(obj.leaves)) {
+    for (const raw of obj.leaves) {
+      const lv = parseLeave(raw, peopleIds);
+      if (lv) leaves.push(lv);
+    }
+  }
+
   const solos: SoloAssignment[] = [];
   const soloDates = new Set<string>();
   if (Array.isArray(obj.solos)) {
@@ -475,6 +504,7 @@ export function normalize(obj: unknown): AppState {
     locations,
     locationDefs,
     solos,
+    leaves,
     fixedDays,
     splitWeekends,
     extraCrews,

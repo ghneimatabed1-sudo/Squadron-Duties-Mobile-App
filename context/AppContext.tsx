@@ -155,6 +155,10 @@ interface AppContextValue {
   ) => void;
   removeLocation: (id: string) => void;
 
+  // away/leave ranges — person excluded from ALL duties inside the range
+  addLeave: (personId: string, startDate: string, endDate: string) => void;
+  removeLeave: (id: string) => void;
+
   // plan-ahead crews (batch). Each special record is one person on one day for
   // one role; a crew is captain + co-pilot, multiple crews per day = more
   // records. Each location record is one person over a (possibly single-day)
@@ -368,6 +372,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         excluded: d.excluded.filter((pid) => pid !== id),
       })),
       solos: s.solos.filter((so) => so.personId !== id),
+      leaves: s.leaves.filter((lv) => lv.personId !== id),
       fixedDays: s.fixedDays.filter((f) => f.personId !== id),
       availability: s.availability.filter((e) => e.personId !== id),
       rosterOrder: s.rosterOrder.filter((pid) => pid !== id),
@@ -791,6 +796,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           locations: s.locations,
           settings: s.settings,
           splitWeekends: s.splitWeekends,
+          leaves: s.leaves,
           extraCrews: s.extraCrews,
           fixedDays: s.fixedDays,
         },
@@ -814,6 +820,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           locations: state.locations,
           settings: state.settings,
           splitWeekends: state.splitWeekends,
+          leaves: state.leaves,
           extraCrews: state.extraCrews,
           fixedDays: state.fixedDays,
         },
@@ -868,6 +875,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           locations: s.locations,
           settings: s.settings,
           splitWeekends: s.splitWeekends,
+          leaves: s.leaves,
           extraCrews: s.extraCrews,
           fixedDays: s.fixedDays,
         },
@@ -930,6 +938,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+  const addLeave = useCallback(
+    (personId: string, startDate: string, endDate: string) => {
+      if (endDate < startDate) return;
+      setState((s) => ({
+        ...s,
+        leaves: [...s.leaves, { id: uid(), personId, startDate, endDate }],
+      }));
+    },
+    [],
+  );
+  const removeLeave = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      leaves: s.leaves.filter((lv) => lv.id !== id),
+    }));
+  }, []);
   const removeLocation = useCallback((id: string) => {
     setState((s) => ({
       ...s,
@@ -987,6 +1011,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 locations,
                 settings: s.settings,
                 splitWeekends: s.splitWeekends,
+          leaves: s.leaves,
                 extraCrews: s.extraCrews,
                 fixedDays: s.fixedDays,
               },
@@ -1088,6 +1113,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // slots use the weekday/weekend queue, standby uses its own queue.
         crew,
         state.fixedDays,
+        state.leaves,
       ),
     [
       state.people,
@@ -1096,6 +1122,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       state.locations,
       state.settings,
       state.fixedDays,
+      state.leaves,
     ],
   );
 
@@ -1214,6 +1241,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     planLocations,
     updateLocation,
     removeLocation,
+    addLeave,
+    removeLeave,
     addLocationDef,
     removeLocationDef,
     toggleLocationExclusion,

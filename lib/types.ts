@@ -66,6 +66,19 @@ export interface LocationAssignment {
 }
 
 /**
+ * An AWAY range: the person is unavailable for ALL duties (duty, standby,
+ * auto-fill and manual recommendation) from startDate to endDate inclusive.
+ * It is not work — no fairness credit, no queue reset — and when the range
+ * ends the person simply resumes their place in the rotation.
+ */
+export interface LeaveRange {
+  id: string;
+  personId: string;
+  startDate: string; // yyyy-mm-dd
+  endDate: string; // yyyy-mm-dd inclusive
+}
+
+/**
  * A single person covering a whole day on their own (e.g. the commander says
  * "I'll take that day"). This is separate from the two-person crew assignment
  * and NEVER counts toward anyone's fair share.
@@ -166,6 +179,8 @@ export interface AppState {
   locations: LocationAssignment[];
   locationDefs: LocationDef[];
   solos: SoloAssignment[];
+  /** Away/leave date ranges — people excluded from all duties while away. */
+  leaves: LeaveRange[];
   /** Recurring fixed-weekday duty rules (until removed manually). */
   fixedDays: FixedDayRule[];
   /**
@@ -210,6 +225,7 @@ export const DEFAULT_STATE: AppState = {
   locations: [],
   locationDefs: [],
   solos: [],
+  leaves: [],
   fixedDays: [],
   splitWeekends: [],
   extraCrews: {},
