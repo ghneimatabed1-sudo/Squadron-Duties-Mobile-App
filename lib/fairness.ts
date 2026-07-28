@@ -249,6 +249,14 @@ export interface Candidate {
    * uses them when nobody else is available.
    */
   resting: boolean;
+  /**
+   * When resting: the smallest day-gap between the slot date and a worked
+   * date inside the rest window (1 = back-to-back). Used so that, when ONLY
+   * resting candidates remain, the least-harmful violation is picked —
+   * never a back-to-back night when a softer gap exists. Infinity when not
+   * resting.
+   */
+  restGap: number;
   eligible: boolean;
   reasonKey?:
     | "reason_inactive"
@@ -299,20 +307,24 @@ export function recommendForSlot(
   const restDays = Math.max(0, Math.floor(settings.restDays));
   const restSpecial = Math.max(0, Math.floor(settings.restDaysSpecial));
   const restLocation = Math.max(0, Math.floor(settings.restDaysLocation));
-  const withinGap = (dates: Set<string>, gapDays: number): boolean => {
-    if (gapDays === 0) return false;
+  // Smallest violating gap (in days) inside a rest window; Infinity if none.
+  const minGapWithin = (dates: Set<string>, gapDays: number): number => {
+    let min = Number.POSITIVE_INFINITY;
+    if (gapDays === 0) return min;
     for (const d of dates) {
       const gap = Math.abs(diffDays(date, d));
-      if (gap > 0 && gap <= gapDays) return true;
+      if (gap > 0 && gap <= gapDays && gap < min) min = gap;
     }
-    return false;
+    return min;
   };
-  const isResting = (q: QueueStats | undefined): boolean => {
-    if (!q) return false;
-    return (
-      withinGap(q.dutyDates, restDays) ||
-      withinGap(q.specialDates, restSpecial) ||
-      withinGap(q.locationDates, restLocation)
+  // The person's tightest rest violation across all work kinds. Infinity =
+  // fully rested. 1 = a back-to-back night (worst case).
+  const restViolationGap = (q: QueueStats | undefined): number => {
+    if (!q) return Number.POSITIVE_INFINITY;
+    return Math.min(
+      minGapWithin(q.dutyDates, restDays),
+      minGapWithin(q.specialDates, restSpecial),
+      minGapWithin(q.locationDates, restLocation),
     );
   };
 
@@ -360,7 +372,9 @@ export function recommendForSlot(
         waitDays: lastDutyDate ? diffDays(date, lastDutyDate) : null,
         lastDutyDate,
         queueCount,
-        resting: eligible && isResting(q),
+        restGap: eligible ? restViolationGap(q) : Number.POSITIVE_INFINITY,
+        resting:
+          eligible && restViolationGap(q) !== Number.POSITIVE_INFINITY,
         eligible,
         reasonKey,
         singleCover: p.singleCover === true,
@@ -374,6 +388,13 @@ export function recommendForSlot(
     if (!!a.singleCover !== !!b.singleCover) return a.singleCover ? 1 : -1;
     // Rested people always come before people inside the rest gap.
     if (a.resting !== b.resting) return a.resting ? 1 : -1;
+    // Both resting (nobody rested is available): prefer the LEAST harmful
+    // violation — a 2-day gap over a back-to-back night. This matters with
+    // weekend-first filling, where a weekday next to an already-placed
+    // weekend block can end up with only resting candidates.
+    if (a.resting && b.resting && a.restGap !== b.restGap) {
+      return b.restGap - a.restGap;
+    }
     // Front of the queue: never-served first, then the longest wait.
     const wa = a.waitDays ?? Number.POSITIVE_INFINITY;
     const wb = b.waitDays ?? Number.POSITIVE_INFINITY;
@@ -414,6 +435,7 @@ export function recommendForSpecial(
       waitDays: null,
       lastDutyDate: last.get(p.id) ?? null,
       queueCount: counts.get(p.id) ?? 0,
+      restGap: Number.POSITIVE_INFINITY,
       resting: false,
       eligible: p.active,
       reasonKey: p.active
@@ -548,6 +570,7 @@ export function recommendForLocationCrew(
         waitDays: null,
         lastDutyDate: last.get(p.id) ?? null,
         queueCount: counts.get(p.id) ?? 0,
+        restGap: Number.POSITIVE_INFINITY,
         resting: false,
         eligible,
         reasonKey,

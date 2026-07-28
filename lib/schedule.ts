@@ -1,4 +1,10 @@
-import { dayOfWeek, isWeekend, weekendDates } from "./dates";
+import {
+  dayOfWeek,
+  diffDays,
+  eachDay,
+  isWeekend,
+  weekendDates,
+} from "./dates";
 import { recommendForSlot } from "./fairness";
 import {
   Assignment,
@@ -166,7 +172,27 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
     targetDates: string[];
   }
 
-  for (const date of dates) {
+  // WEEKEND-FIRST FILL ORDER — weekends are assigned before weekdays. A
+  // weekend block is 3 nights of work, so the person at the head of the
+  // weekend queue must get it; if weekdays were filled first, a Tue/Wed duty
+  // picked earlier in this very run could flag the rightful weekend person as
+  // "resting" for Thursday and silently skip their weekend turn. Filling the
+  // weekend first means weekday picks route AROUND the weekend crew instead.
+  //
+  // Weekdays keep their chronological order so the rotation queue advances
+  // day by day exactly as before; a repair pass afterwards untangles the rare
+  // corner where the pre-placed weekend leaves a weekday with only resting
+  // candidates.
+  const orderedDates = [
+    ...dates.filter((d) => isWeekend(d)),
+    ...dates.filter((d) => !isWeekend(d)),
+  ];
+
+  // Slots written by THIS rotation fill (never manual/pre-existing picks) —
+  // only these may be touched by the repair pass below.
+  const rotationIds = new Set<string>();
+
+  for (const date of orderedDates) {
     const block = isWeekend(date) && !splitSet.has(weekendDates(date)[0]);
     const blockDates = block
       ? weekendDates(date).filter((d) => dateSet.has(d))
@@ -238,8 +264,10 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
           ) {
             continue;
           }
+          const id = uid();
+          rotationIds.add(id);
           working.push({
-            id: uid(),
+            id,
             date: d,
             crew,
             role,
@@ -247,6 +275,106 @@ export function autoFill(input: AutoFillInput, dates: string[]): Assignment[] {
             activated: crew === "standby" ? false : undefined,
             crewIndex: crewIndex > 0 ? crewIndex : undefined,
           });
+        }
+      }
+    }
+  }
+
+  // REPAIR PASS — untangle avoidable rest-gap violations left by the
+  // weekend-first order. Because the weekend crew is now locked in before the
+  // weekdays, a greedy weekday fill can occasionally leave e.g. Wednesday with
+  // only resting candidates while a legal swap exists (the person put on
+  // Monday could have taken Wednesday and vice versa). This pass looks at
+  // weekday slots written by THIS run whose occupant sits inside the rest gap
+  // and swaps two occupants when the swap removes the violation without
+  // creating a new one. Manual picks and weekend blocks are never touched.
+  const restDays = Math.max(0, Math.floor(settings.restDays));
+  const restSpecial = Math.max(0, Math.floor(settings.restDaysSpecial));
+  const restLocation = Math.max(0, Math.floor(settings.restDaysLocation));
+  if (restDays > 0 || restSpecial > 0 || restLocation > 0) {
+    // Each kind of work keeps its own rest window — the SAME semantics as
+    // recommendForSlot, so the repair pass can never legalise a swap that the
+    // fairness engine itself would flag as resting.
+    const workedGapsOf = (
+      personId: string,
+    ): Array<{ date: string; gapDays: number }> => {
+      const out: Array<{ date: string; gapDays: number }> = [];
+      for (const a of working) {
+        if (a.personId === personId) {
+          out.push({ date: a.date, gapDays: restDays });
+        }
+      }
+      for (const sp of specials) {
+        if (sp.personId === personId) {
+          out.push({ date: sp.date, gapDays: restSpecial });
+        }
+      }
+      for (const loc of locations) {
+        if (loc.personId !== personId) continue;
+        for (const d of eachDay(loc.startDate, loc.endDate)) {
+          out.push({ date: d, gapDays: restLocation });
+        }
+      }
+      return out;
+    };
+    // Would `personId` violate any rest window if they worked `atDate`,
+    // ignoring the day(s) they are being moved OFF of?
+    const violatesAt = (
+      personId: string,
+      atDate: string,
+      ignore: Set<string>,
+    ): boolean => {
+      for (const { date: d, gapDays } of workedGapsOf(personId)) {
+        if (d === atDate || ignore.has(d) || gapDays === 0) continue;
+        const gap = Math.abs(diffDays(atDate, d));
+        if (gap > 0 && gap <= gapDays) return true;
+      }
+      return false;
+    };
+    // Indexes into `working` so entries stay current across swaps (swapping
+    // replaces the objects — see below — which would leave direct references
+    // stale).
+    const swappable: number[] = [];
+    for (let i = 0; i < working.length; i++) {
+      const a = working[i];
+      if (rotationIds.has(a.id) && dateSet.has(a.date) && !isWeekend(a.date)) {
+        swappable.push(i);
+      }
+    }
+    for (const ia of swappable) {
+      const a = working[ia];
+      if (!violatesAt(a.personId, a.date, new Set([a.date]))) continue;
+      for (const ib of swappable) {
+        const b = working[ib];
+        if (
+          ib === ia ||
+          b.role !== a.role ||
+          b.crew !== a.crew ||
+          b.date === a.date ||
+          b.personId === a.personId
+        ) {
+          continue;
+        }
+        // Both people must be legal on the other's day after the swap: free,
+        // not committed elsewhere, and outside every rest window.
+        const aFreeOnB =
+          !working.some(
+            (x) => x !== b && x.date === b.date && x.personId === a.personId,
+          ) &&
+          !busyOn(a.personId, b.date) &&
+          !violatesAt(a.personId, b.date, new Set([a.date]));
+        const bFreeOnA =
+          !working.some(
+            (x) => x !== a && x.date === a.date && x.personId === b.personId,
+          ) &&
+          !busyOn(b.personId, a.date) &&
+          !violatesAt(b.personId, a.date, new Set([b.date]));
+        if (aFreeOnB && bFreeOnA) {
+          // Swap by REPLACING the two entries (never mutate in place) so the
+          // no-input-mutation guarantee holds structurally.
+          working[ia] = { ...a, personId: b.personId };
+          working[ib] = { ...b, personId: a.personId };
+          break;
         }
       }
     }
